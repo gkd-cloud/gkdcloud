@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# 备份原始 sources.list 文件
+BACKUP_FILE="/etc/apt/sources.list.bak"
+echo "正在备份 /etc/apt/sources.list 到 $BACKUP_FILE..."
+sudo cp /etc/apt/sources.list "$BACKUP_FILE"
+
+# 替换 deb.debian.org 为 archive.debian.org
+echo "正在替换 deb.debian.org 为 archive.debian.org..."
+sudo sed -i 's|deb.debian.org/debian|archive.debian.org/debian|g' /etc/apt/sources.list
+
+# 替换 security.debian.org 为 archive.debian.org
+echo "正在替换 security.debian.org 为 archive.debian.org..."
+sudo sed -i 's|security.debian.org/debian-security|archive.debian.org/debian-security|g' /etc/apt/sources.list
+
+# 禁用 Release 文件有效性检查（处理过期警告）
+echo "设置 APT 忽略 Release 文件有效性检查..."
+echo 'Acquire::Check-Valid-Until "false";' | sudo tee /etc/apt/apt.conf.d/99disable-check-valid-until
+
+# 更新软件包列表
+echo "正在更新软件包列表..."
+sudo apt update
+
+echo "替换完成！请检查 /etc/apt/sources.list 是否正确。"
