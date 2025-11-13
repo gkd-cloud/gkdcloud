@@ -298,14 +298,6 @@ async function apiCall(endpoint, options = {}) {
         console.log(`[API] 响应状态: ${response.status}`);
         addApiLog(`响应状态: ${response.status}`, response.ok ? 'info' : 'warn');
 
-        // 先检查 401 状态（只有真正的 401 才登出）
-        if (response.status === 401) {
-            console.warn('[API] 401 未授权，执行登出');
-            addApiLog('401 未授权，执行登出', 'error');
-            AuthManager.logout();
-            throw new Error('未授权，请重新登录');
-        }
-
         // 尝试解析 JSON
         let data;
         try {
@@ -325,6 +317,22 @@ async function apiCall(endpoint, options = {}) {
             }
             addApiLog('响应格式错误（非 JSON）', 'error');
             throw new Error('响应格式错误');
+        }
+
+        // 检查 401 状态（解析 JSON 后才能获取详细信息）
+        if (response.status === 401) {
+            const debugInfo = data.debug || data.error || '未知原因';
+            console.warn('[API] 401 未授权:', debugInfo);
+            addApiLog(`401 未授权: ${debugInfo}`, 'error');
+
+            // 记录完整的 401 响应数据
+            if (data.debug) {
+                addApiLog(`详细信息: ${data.debug}`, 'error');
+            }
+
+            addApiLog('执行登出...', 'warn');
+            AuthManager.logout();
+            throw new Error('未授权，请重新登录');
         }
 
         if (!response.ok) {
