@@ -84,6 +84,7 @@ class SogaInstaller {
       chmod +x soga && \\
       mkdir -p ${workDir} && \\
       mv soga ${workDir}/soga && \\
+      chmod +x ${workDir}/soga && \\
       rm -f soga.tar.gz
     `;
 
@@ -91,7 +92,7 @@ class SogaInstaller {
     console.log('=== 下载步骤 ===');
     console.log('退出码:', downloadResult.code);
     console.log('输出:', downloadResult.stdout);
-    console.log('错误:', downloadResult.stderr);
+    if (downloadResult.stderr) console.log('错误:', downloadResult.stderr);
 
     if (downloadResult.code !== 0) {
       throw new Error(`下载失败: ${downloadResult.stderr || downloadResult.stdout || '未知错误'}`);
@@ -103,7 +104,21 @@ class SogaInstaller {
     console.log('验证结果:', verifyResult.stdout.trim());
 
     if (verifyResult.stdout.trim() !== 'OK') {
-      throw new Error('Soga 文件下载失败或无法执行');
+      // 获取详细信息
+      const debugInfo = await this.ssh.execCommand(`ls -lh ${workDir}/soga 2>&1 && file ${workDir}/soga 2>&1`);
+      console.log('调试信息:', debugInfo.stdout);
+
+      // 尝试修复权限
+      console.log('尝试修复权限...');
+      const fixResult = await this.ssh.execCommand(`chmod +x ${workDir}/soga && ls -lh ${workDir}/soga`);
+      console.log('修复结果:', fixResult.stdout);
+
+      // 再次验证
+      const retryVerify = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK" || echo "FAIL"`);
+      if (retryVerify.stdout.trim() !== 'OK') {
+        throw new Error(`Soga 文件无法执行，权限修复失败: ${debugInfo.stdout}`);
+      }
+      console.log('权限修复成功');
     }
 
     console.log('Soga 下载成功');
@@ -160,6 +175,7 @@ class SogaInstaller {
         chmod +x soga && \\
         mkdir -p ${workDir} && \\
         mv soga ${workDir}/soga && \\
+        chmod +x ${workDir}/soga && \\
         rm -f soga.tar.gz && \\
         echo "安装完成"
       `;
@@ -174,6 +190,7 @@ class SogaInstaller {
         chmod +x soga && \\
         mkdir -p ${workDir} && \\
         mv soga ${workDir}/soga && \\
+        chmod +x ${workDir}/soga && \\
         echo "安装完成"
       `;
     }
@@ -197,9 +214,20 @@ class SogaInstaller {
 
     if (verifyResult.stdout.trim() !== 'OK') {
       // 获取详细信息用于调试
-      const debugInfo = await this.ssh.execCommand(`ls -lh ${workDir}/soga 2>&1; file ${workDir}/soga 2>&1`);
-      console.error('调试信息:', debugInfo.stdout);
-      throw new Error(`Soga 文件无法执行，请检查文件是否正确: ${debugInfo.stdout}`);
+      const debugInfo = await this.ssh.execCommand(`ls -lh ${workDir}/soga 2>&1 && file ${workDir}/soga 2>&1`);
+      console.log('调试信息:', debugInfo.stdout);
+
+      // 尝试修复权限
+      console.log('尝试修复权限...');
+      const fixResult = await this.ssh.execCommand(`chmod +x ${workDir}/soga && ls -lh ${workDir}/soga`);
+      console.log('修复结果:', fixResult.stdout);
+
+      // 再次验证
+      const retryVerify = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK" || echo "FAIL"`);
+      if (retryVerify.stdout.trim() !== 'OK') {
+        throw new Error(`Soga 文件无法执行，权限修复失败: ${debugInfo.stdout}`);
+      }
+      console.log('权限修复成功');
     }
 
     console.log('离线包安装成功！');
