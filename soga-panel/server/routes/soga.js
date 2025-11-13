@@ -89,7 +89,10 @@ router.post('/install', async (req, res) => {
     const result = await installer.install(instanceName, config);
 
     if (!result.success) {
-      return res.status(500).json({ error: result.message });
+      return res.status(500).json({
+        error: result.message,
+        logs: result.logs // 返回安装日志
+      });
     }
 
     // 保存实例信息

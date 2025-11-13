@@ -433,6 +433,27 @@
         </div>
     </div>
 
+    <!-- 安装日志模态框 -->
+    <div id="install-logs-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>安装日志</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 10px;">
+                    <button class="btn btn-sm btn-primary" onclick="copyInstallLogs()">复制日志</button>
+                </div>
+                <div class="logs-container" style="max-height: 500px; overflow-y: auto;">
+                    <pre id="install-logs-content" style="font-size: 12px; white-space: pre-wrap; word-wrap: break-word;"></pre>
+                </div>
+                <div class="form-actions" style="margin-top: 15px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeInstallLogsModal()">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <p>Soga Panel v1.0.0 | Powered by Node.js</p>
     </footer>

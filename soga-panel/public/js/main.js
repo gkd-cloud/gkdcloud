@@ -326,7 +326,11 @@ async function apiCall(endpoint, options = {}) {
             console.error('[API] 请求失败:', data);
             const errorMsg = data.error || data.message || '请求失败';
             addApiLog(`请求失败: ${errorMsg}`, 'error');
-            throw new Error(errorMsg);
+
+            // 创建包含完整数据的错误对象
+            const error = new Error(errorMsg);
+            error.data = data; // 保存完整的响应数据（包括 logs）
+            throw error;
         }
 
         console.log(`[API] 请求成功`);
@@ -653,7 +657,46 @@ async function handleCreateInstance(e) {
         alert('实例创建成功，正在启动...');
         loadInstances();
     } catch (error) {
-        // Error already handled in apiCall
+        // 如果错误包含安装日志，显示日志模态框
+        if (error.data && error.data.logs) {
+            showInstallLogs(error.data.logs, error.message);
+        }
+        // Error already handled in apiCall with alert
+    }
+}
+
+// 显示安装日志模态框
+function showInstallLogs(logs, errorMessage) {
+    const modal = document.getElementById('install-logs-modal');
+    const content = document.getElementById('install-logs-content');
+
+    if (modal && content) {
+        // 显示错误消息和完整日志
+        let logsText = `===== 安装失败 =====\n错误: ${errorMessage}\n\n===== 详细安装日志 =====\n${logs}\n`;
+        content.textContent = logsText;
+        modal.style.display = 'block';
+
+        // 保存日志到全局变量以便复制
+        window.currentInstallLogs = logsText;
+    }
+}
+
+// 复制安装日志
+function copyInstallLogs() {
+    const logsText = window.currentInstallLogs || document.getElementById('install-logs-content').textContent;
+    navigator.clipboard.writeText(logsText).then(() => {
+        alert('日志已复制到剪贴板');
+    }).catch(err => {
+        console.error('复制失败:', err);
+        alert('复制失败，请手动选择并复制');
+    });
+}
+
+// 关闭安装日志模态框
+function closeInstallLogsModal() {
+    const modal = document.getElementById('install-logs-modal');
+    if (modal) {
+        modal.style.display = 'none';
     }
 }
 
