@@ -52,6 +52,10 @@ soga-panel/
 
 ## 快速开始
 
+> **📢 一键更新**: 如果你已经安装了 Soga Panel，想要更新到最新版本，请查看 [更新指南](UPDATE_GUIDE.md)
+>
+> 一键更新命令：`cd soga-panel && bash auto-update.sh`
+
 ### 1. 安装依赖
 
 **方法 1 - 使用安装脚本（推荐）：**
@@ -236,13 +240,22 @@ journalctl -u soga-{实例名称} -f
 5. 限制面板访问 IP
 6. 定期更新 Soga 版本
 
+## 相关文档
+
+- 📖 [快速开始指南](QUICKSTART.md) - 详细的部署步骤
+- 🔄 [更新指南](UPDATE_GUIDE.md) - 一键更新到最新版本
+- 📝 [API 文档](API.md) - 完整的 API 接口说明
+- 🚀 [部署文档](DEPLOYMENT.md) - 生产环境部署指南
+- 🔧 [故障排查](TROUBLESHOOTING.md) - 常见问题解决方案
+- 📚 [项目结构](PROJECT_STRUCTURE.md) - 代码结构说明
+
 ## 开发计划
 
 - [ ] 支持批量部署
 - [ ] 添加配置文件版本控制
 - [ ] 实现在线编辑配置
 - [ ] 添加流量统计图表
-- [ ] 支持自动更新 Soga
+- [x] 支持自动更新面板 ✅
 - [ ] 添加告警通知功能
 
 ## 许可证
