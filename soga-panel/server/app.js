@@ -65,9 +65,23 @@ app.use((req, res) => {
 // 错误处理
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(500).json({ 
-    error: 'Internal Server Error', 
-    message: err.message 
+
+  // 确保返回 JSON 格式的错误
+  let statusCode = err.status || err.statusCode || 500;
+  let errorMessage = err.message || 'Internal Server Error';
+
+  // 特殊处理 body-parser 错误
+  if (err.type === 'entity.too.large') {
+    statusCode = 413;
+    errorMessage = '请求体过大';
+  } else if (err.type === 'entity.parse.failed') {
+    statusCode = 400;
+    errorMessage = '请求数据格式错误';
+  }
+
+  res.status(statusCode).json({
+    error: statusCode === 500 ? 'Internal Server Error' : errorMessage,
+    message: errorMessage
   });
 });
 

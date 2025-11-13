@@ -167,7 +167,7 @@ class SSHService {
   }
 
   // 上传文件 (使用 SFTP)
-  async uploadFile(localBuffer, remotePath) {
+  async uploadFile(localBuffer, remotePath, options = {}) {
     if (!this.ssh) {
       throw new Error('SSH 未连接');
     }
@@ -182,6 +182,12 @@ class SSHService {
       // 上传文件
       await sftp.writeFile(remotePath, localBuffer);
       console.log(`文件上传成功: ${remotePath}`);
+
+      // 上传后设置权限（如果指定）
+      if (options.mode) {
+        await this.execCommand(`chmod ${options.mode} ${remotePath}`);
+        console.log(`设置文件权限: ${options.mode}`);
+      }
 
       return { success: true, path: remotePath };
     } catch (error) {
