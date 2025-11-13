@@ -1,5 +1,67 @@
 const API_BASE = '/api';
 
+// API 日志收集
+const apiLogs = [];
+const MAX_LOGS = 100;
+
+function addApiLog(message, type = 'info') {
+    const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+    const logEntry = {
+        timestamp,
+        message,
+        type,
+        fullText: `[${timestamp}] [${type.toUpperCase()}] ${message}`
+    };
+
+    apiLogs.push(logEntry);
+
+    // 限制日志数量
+    if (apiLogs.length > MAX_LOGS) {
+        apiLogs.shift();
+    }
+
+    // 更新日志显示
+    updateLogViewer();
+}
+
+function updateLogViewer() {
+    const logContent = document.getElementById('api-logs-content');
+    const logCount = document.getElementById('log-count');
+
+    if (logContent) {
+        logContent.textContent = apiLogs.map(log => log.fullText).join('\n');
+        // 自动滚动到底部
+        logContent.parentElement.scrollTop = logContent.parentElement.scrollHeight;
+    }
+
+    if (logCount) {
+        logCount.textContent = apiLogs.length;
+    }
+}
+
+function toggleLogViewer() {
+    const modal = document.getElementById('log-viewer-modal');
+    if (modal) {
+        modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
+        updateLogViewer();
+    }
+}
+
+function clearApiLogs() {
+    apiLogs.length = 0;
+    updateLogViewer();
+}
+
+function copyApiLogs() {
+    const logsText = apiLogs.map(log => log.fullText).join('\n');
+    navigator.clipboard.writeText(logsText).then(() => {
+        alert('日志已复制到剪贴板');
+    }).catch(err => {
+        console.error('复制失败:', err);
+        alert('复制失败，请手动选择并复制');
+    });
+}
+
 // 状态管理
 const state = {
     servers: [],
@@ -211,12 +273,14 @@ async function loadSavedPackagesDropdown() {
 // API 调用
 async function apiCall(endpoint, options = {}) {
     let response;
+    const method = options.method || 'GET';
 
     try {
         // 使用 AuthManager 获取认证头
         const authHeaders = AuthManager.getAuthHeaders();
 
-        console.log(`[API] 请求: ${endpoint}`);
+        console.log(`[API] 请求: ${method} ${endpoint}`);
+        addApiLog(`请求: ${method} ${endpoint}`, 'info');
 
         response = await fetch(`${API_BASE}${endpoint}`, {
             headers: {
@@ -227,10 +291,12 @@ async function apiCall(endpoint, options = {}) {
         });
 
         console.log(`[API] 响应状态: ${response.status}`);
+        addApiLog(`响应状态: ${response.status}`, response.ok ? 'info' : 'warn');
 
         // 先检查 401 状态（只有真正的 401 才登出）
         if (response.status === 401) {
             console.warn('[API] 401 未授权，执行登出');
+            addApiLog('401 未授权，执行登出', 'error');
             AuthManager.logout();
             throw new Error('未授权，请重新登录');
         }
@@ -240,28 +306,41 @@ async function apiCall(endpoint, options = {}) {
         try {
             const contentType = response.headers.get('content-type');
             console.log(`[API] Content-Type: ${contentType}`);
+            addApiLog(`Content-Type: ${contentType || '无'}`, 'info');
 
             data = await response.json();
         } catch (jsonError) {
             console.error('[API] JSON 解析失败:', jsonError);
+            addApiLog(`JSON 解析失败: ${jsonError.message}`, 'error');
             // 如果响应不是 JSON，可能是网络错误或服务器错误
             if (!response.ok) {
-                throw new Error(`服务器错误 (${response.status}): ${response.statusText}`);
+                const errorMsg = `服务器错误 (${response.status}): ${response.statusText}`;
+                addApiLog(errorMsg, 'error');
+                throw new Error(errorMsg);
             }
+            addApiLog('响应格式错误（非 JSON）', 'error');
             throw new Error('响应格式错误');
         }
 
         if (!response.ok) {
             console.error('[API] 请求失败:', data);
-            throw new Error(data.error || data.message || '请求失败');
+            const errorMsg = data.error || data.message || '请求失败';
+            addApiLog(`请求失败: ${errorMsg}`, 'error');
+
+            // 创建包含完整数据的错误对象
+            const error = new Error(errorMsg);
+            error.data = data; // 保存完整的响应数据（包括 logs）
+            throw error;
         }
 
         console.log(`[API] 请求成功`);
+        addApiLog(`请求成功`, 'success');
         return data;
     } catch (error) {
         // 网络错误或 fetch 本身失败
         if (!response) {
             console.error('[API] 网络错误或请求失败:', error);
+            addApiLog(`网络错误: ${error.message}`, 'error');
             alert(`网络错误: ${error.message}`);
             throw error;
         }
@@ -578,7 +657,46 @@ async function handleCreateInstance(e) {
         alert('实例创建成功，正在启动...');
         loadInstances();
     } catch (error) {
-        // Error already handled in apiCall
+        // 如果错误包含安装日志，显示日志模态框
+        if (error.data && error.data.logs) {
+            showInstallLogs(error.data.logs, error.message);
+        }
+        // Error already handled in apiCall with alert
+    }
+}
+
+// 显示安装日志模态框
+function showInstallLogs(logs, errorMessage) {
+    const modal = document.getElementById('install-logs-modal');
+    const content = document.getElementById('install-logs-content');
+
+    if (modal && content) {
+        // 显示错误消息和完整日志
+        let logsText = `===== 安装失败 =====\n错误: ${errorMessage}\n\n===== 详细安装日志 =====\n${logs}\n`;
+        content.textContent = logsText;
+        modal.style.display = 'block';
+
+        // 保存日志到全局变量以便复制
+        window.currentInstallLogs = logsText;
+    }
+}
+
+// 复制安装日志
+function copyInstallLogs() {
+    const logsText = window.currentInstallLogs || document.getElementById('install-logs-content').textContent;
+    navigator.clipboard.writeText(logsText).then(() => {
+        alert('日志已复制到剪贴板');
+    }).catch(err => {
+        console.error('复制失败:', err);
+        alert('复制失败，请手动选择并复制');
+    });
+}
+
+// 关闭安装日志模态框
+function closeInstallLogsModal() {
+    const modal = document.getElementById('install-logs-modal');
+    if (modal) {
+        modal.style.display = 'none';
     }
 }
 

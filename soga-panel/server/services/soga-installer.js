@@ -5,61 +5,98 @@ class SogaInstaller {
   constructor(serverConfig) {
     this.ssh = new SSHService(serverConfig);
     this.configGenerator = new ConfigGenerator();
+    this.installLogs = []; // 捕获安装日志
+  }
+
+  // 添加日志
+  log(message, type = 'info') {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
+    this.installLogs.push(logEntry);
+    console.log(logEntry);
+  }
+
+  // 获取日志
+  getLogs() {
+    return this.installLogs.join('\n');
+  }
+
+  // 清空日志
+  clearLogs() {
+    this.installLogs = [];
   }
 
   // 安装 Soga
   async install(instanceName, config) {
+    this.clearLogs(); // 清空之前的日志
+
     try {
-      console.log(`开始安装 Soga 实例: ${instanceName}`);
+      this.log(`开始安装 Soga 实例: ${instanceName}`, 'info');
 
       // 1. 连接服务器
+      this.log('连接到服务器...', 'info');
       await this.ssh.connect();
+      this.log('服务器连接成功', 'success');
 
       // 2. 检测系统架构
+      this.log('检测系统架构...', 'info');
       const archResult = await this.ssh.execCommand('uname -m');
       const arch = archResult.stdout.trim();
       const sogaArch = this.getArch(arch);
-
-      console.log(`系统架构: ${arch} -> ${sogaArch}`);
+      this.log(`系统架构: ${arch} -> ${sogaArch}`, 'info');
 
       // 3. 创建工作目录
       const workDir = `/etc/soga/${instanceName}`;
+      this.log(`创建工作目录: ${workDir}`, 'info');
       await this.ssh.execCommand(`mkdir -p ${workDir}`);
 
       // 4. 下载或上传 Soga
       if (config.offlineMode && config.sogaPackage) {
         // 离线模式：上传用户提供的 tar.gz 包
-        console.log('使用离线授权模式...');
+        this.log('使用离线授权模式...', 'info');
         await this.installOffline(workDir, config.sogaPackage);
       } else {
         // 在线模式：从 GitHub 下载
-        console.log('使用在线授权模式...');
+        this.log('使用在线授权模式...', 'info');
         const sogaVersion = config.sogaVersion || 'latest';
         const downloadUrl = this.getDownloadUrl(sogaVersion, sogaArch);
         await this.installOnline(workDir, downloadUrl);
       }
 
       // 5. 生成并上传配置文件
+      this.log('生成并上传配置文件...', 'info');
       await this.uploadConfigs(instanceName, workDir, config);
 
       // 6. 创建 systemd 服务
+      this.log('创建 systemd 服务...', 'info');
       await this.createSystemdService(instanceName, workDir);
 
       // 7. 启动服务
       const serviceName = `soga-${instanceName}`;
+      this.log('启动 Soga 服务...', 'info');
       await this.ssh.execCommand(`systemctl daemon-reload`);
       await this.ssh.execCommand(`systemctl enable ${serviceName}`);
-      await this.ssh.execCommand(`systemctl start ${serviceName}`);
+      const startResult = await this.ssh.execCommand(`systemctl start ${serviceName}`);
+
+      if (startResult.code !== 0) {
+        this.log(`服务启动警告: ${startResult.stderr}`, 'warn');
+      } else {
+        this.log('服务启动成功', 'success');
+      }
 
       this.ssh.dispose();
 
-      console.log(`Soga 实例 ${instanceName} 安装成功`);
-      return { success: true, message: '安装成功' };
+      this.log(`Soga 实例 ${instanceName} 安装成功`, 'success');
+      return { success: true, message: '安装成功', logs: this.getLogs() };
 
     } catch (error) {
-      console.error(`安装失败: ${error.message}`);
+      this.log(`安装失败: ${error.message}`, 'error');
       this.ssh.dispose();
-      return { success: false, message: error.message };
+      return {
+        success: false,
+        message: error.message,
+        logs: this.getLogs() // 返回完整的日志
+      };
     }
   }
 
@@ -126,46 +163,54 @@ class SogaInstaller {
 
   // 离线安装（参考官方脚本，使用 SFTP 上传）
   async installOffline(workDir, packageBase64) {
-    console.log('上传离线 Soga 包...');
-    console.log('Base64 数据长度:', packageBase64.length);
+    this.log('上传离线 Soga 包...', 'info');
+    this.log(`Base64 数据长度: ${packageBase64.length}`, 'info');
 
     // 步骤1: 使用 SFTP 上传文件到 /usr/local（与官方脚本路径一致）
     const remotePath = '/usr/local/soga.tar.gz';
 
     // 清理旧文件
-    await this.ssh.execCommand('rm -f /usr/local/soga.tar.gz /usr/local/soga');
+    this.log('清理旧文件...', 'info');
+    const cleanResult = await this.ssh.execCommand('rm -f /usr/local/soga.tar.gz /usr/local/soga');
+    if (cleanResult.code !== 0) {
+      this.log(`清理警告: ${cleanResult.stderr}`, 'warn');
+    }
 
     // 将 base64 转换为 Buffer
     const fileBuffer = Buffer.from(packageBase64, 'base64');
-    console.log('文件大小:', (fileBuffer.length / 1024 / 1024).toFixed(2), 'MB');
+    this.log(`文件大小: ${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB`, 'info');
 
     // 使用 SFTP 上传（设置读写权限）
     try {
+      this.log('=== 步骤1: 上传文件 ===', 'info');
       await this.ssh.uploadFile(fileBuffer, remotePath, { mode: '644' });
-      console.log('=== 步骤1: 上传文件 ===');
-      console.log('SFTP 上传成功');
+      this.log('SFTP 上传成功', 'success');
     } catch (error) {
+      this.log(`文件上传失败: ${error.message}`, 'error');
       throw new Error(`文件上传失败: ${error.message}`);
     }
 
     // 验证上传的文件
+    this.log('验证上传的文件...', 'info');
     const verifyUpload = await this.ssh.execCommand(`ls -lh ${remotePath} && file ${remotePath}`);
-    console.log('文件验证:', verifyUpload.stdout);
+    this.log(`文件验证输出:\n${verifyUpload.stdout}`, 'info');
 
     if (verifyUpload.code !== 0) {
+      this.log(`文件上传验证失败: ${verifyUpload.stderr || '文件不存在'}`, 'error');
       throw new Error(`文件上传验证失败: ${verifyUpload.stderr || '文件不存在'}`);
     }
 
     // 判断是否为 tar.gz 压缩包
     const fileTypeOutput = verifyUpload.stdout;
     const isTarGz = fileTypeOutput.includes('gzip') || fileTypeOutput.includes('compressed');
-    console.log('文件类型:', isTarGz ? 'tar.gz 压缩包' : '可能是二进制文件');
+    this.log(`文件类型: ${isTarGz ? 'tar.gz 压缩包' : '可能是二进制文件'}`, 'info');
 
     // 步骤2: 解压或处理文件
     let extractCmd;
     if (isTarGz) {
       // tar.gz 包：使用官方脚本的解压方式
-      console.log('开始解压 tar.gz 包（使用官方脚本方式）...');
+      this.log('=== 步骤2: 解压/安装 ===', 'info');
+      this.log('开始解压 tar.gz 包（使用官方脚本方式）...', 'info');
       extractCmd = `
         cd /usr/local && \\
         echo "开始解压..." && \\
@@ -181,7 +226,8 @@ class SogaInstaller {
       `;
     } else {
       // 二进制文件：重命名并处理
-      console.log('作为二进制文件处理...');
+      this.log('=== 步骤2: 解压/安装 ===', 'info');
+      this.log('作为二进制文件处理...', 'info');
       extractCmd = `
         cd /usr/local && \\
         mv soga.tar.gz soga && \\
@@ -196,46 +242,49 @@ class SogaInstaller {
     }
 
     const extractResult = await this.ssh.execCommand(extractCmd);
-    console.log('=== 步骤2: 解压/安装 ===');
-    console.log('退出码:', extractResult.code);
-    console.log('输出:', extractResult.stdout);
-    if (extractResult.stderr) console.log('错误:', extractResult.stderr);
+    this.log(`退出码: ${extractResult.code}`, extractResult.code === 0 ? 'success' : 'error');
+    this.log(`输出:\n${extractResult.stdout}`, 'info');
+    if (extractResult.stderr) {
+      this.log(`stderr:\n${extractResult.stderr}`, 'warn');
+    }
 
     if (extractResult.code !== 0) {
       const errorMsg = extractResult.stderr || extractResult.stdout || '未知错误';
-      console.error('安装失败，详细信息:', errorMsg);
+      this.log(`安装失败: ${errorMsg}`, 'error');
       throw new Error(`离线包安装失败: ${errorMsg}`);
     }
 
     // 确保文件权限正确（额外保险）
-    console.log('=== 额外步骤: 确保权限 ===');
+    this.log('=== 额外步骤: 确保权限 ===', 'info');
     const ensurePermResult = await this.ssh.execCommand(`chmod +x ${workDir}/soga && ls -lh ${workDir}/soga`);
-    console.log('权限确认:', ensurePermResult.stdout);
+    this.log(`权限确认:\n${ensurePermResult.stdout}`, 'info');
 
     // 步骤3: 验证文件是否存在且可执行
+    this.log('=== 步骤3: 验证安装 ===', 'info');
     const verifyResult = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK" || echo "FAIL"`);
-    console.log('=== 步骤3: 验证安装 ===');
-    console.log('验证结果:', verifyResult.stdout.trim());
+    this.log(`验证结果: ${verifyResult.stdout.trim()}`, 'info');
 
     if (verifyResult.stdout.trim() !== 'OK') {
       // 获取详细信息用于调试
+      this.log('验证失败，获取调试信息...', 'warn');
       const debugInfo = await this.ssh.execCommand(`ls -lh ${workDir}/soga 2>&1 && file ${workDir}/soga 2>&1`);
-      console.log('调试信息:', debugInfo.stdout);
+      this.log(`调试信息:\n${debugInfo.stdout}`, 'info');
 
       // 尝试修复权限
-      console.log('尝试修复权限...');
+      this.log('尝试修复权限...', 'warn');
       const fixResult = await this.ssh.execCommand(`chmod +x ${workDir}/soga && ls -lh ${workDir}/soga`);
-      console.log('修复结果:', fixResult.stdout);
+      this.log(`修复结果:\n${fixResult.stdout}`, 'info');
 
       // 再次验证
       const retryVerify = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK" || echo "FAIL"`);
       if (retryVerify.stdout.trim() !== 'OK') {
+        this.log(`Soga 文件无法执行，权限修复失败`, 'error');
         throw new Error(`Soga 文件无法执行，权限修复失败: ${debugInfo.stdout}`);
       }
-      console.log('权限修复成功');
+      this.log('权限修复成功', 'success');
     }
 
-    console.log('离线包安装成功！');
+    this.log('离线包安装成功！', 'success');
   }
 
   // 更新 Soga 版本
