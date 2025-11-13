@@ -5,6 +5,25 @@ class SogaInstaller {
   constructor(serverConfig) {
     this.ssh = new SSHService(serverConfig);
     this.configGenerator = new ConfigGenerator();
+    this.installLogs = []; // 捕获安装日志
+  }
+
+  // 添加日志
+  log(message, type = 'info') {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
+    this.installLogs.push(logEntry);
+    console.log(logEntry);
+  }
+
+  // 获取日志
+  getLogs() {
+    return this.installLogs.join('\n');
+  }
+
+  // 清空日志
+  clearLogs() {
+    this.installLogs = [];
   }
 
   // 安装 Soga
@@ -126,40 +145,47 @@ class SogaInstaller {
 
   // 离线安装（参考官方脚本，使用 SFTP 上传）
   async installOffline(workDir, packageBase64) {
-    console.log('上传离线 Soga 包...');
-    console.log('Base64 数据长度:', packageBase64.length);
+    this.log('上传离线 Soga 包...', 'info');
+    this.log(`Base64 数据长度: ${packageBase64.length}`, 'info');
 
     // 步骤1: 使用 SFTP 上传文件到 /usr/local（与官方脚本路径一致）
     const remotePath = '/usr/local/soga.tar.gz';
 
     // 清理旧文件
-    await this.ssh.execCommand('rm -f /usr/local/soga.tar.gz /usr/local/soga');
+    this.log('清理旧文件...', 'info');
+    const cleanResult = await this.ssh.execCommand('rm -f /usr/local/soga.tar.gz /usr/local/soga');
+    if (cleanResult.code !== 0) {
+      this.log(`清理警告: ${cleanResult.stderr}`, 'warn');
+    }
 
     // 将 base64 转换为 Buffer
     const fileBuffer = Buffer.from(packageBase64, 'base64');
-    console.log('文件大小:', (fileBuffer.length / 1024 / 1024).toFixed(2), 'MB');
+    this.log(`文件大小: ${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB`, 'info');
 
     // 使用 SFTP 上传（设置读写权限）
     try {
+      this.log('=== 步骤1: 上传文件 ===', 'info');
       await this.ssh.uploadFile(fileBuffer, remotePath, { mode: '644' });
-      console.log('=== 步骤1: 上传文件 ===');
-      console.log('SFTP 上传成功');
+      this.log('SFTP 上传成功', 'success');
     } catch (error) {
+      this.log(`文件上传失败: ${error.message}`, 'error');
       throw new Error(`文件上传失败: ${error.message}`);
     }
 
     // 验证上传的文件
+    this.log('验证上传的文件...', 'info');
     const verifyUpload = await this.ssh.execCommand(`ls -lh ${remotePath} && file ${remotePath}`);
-    console.log('文件验证:', verifyUpload.stdout);
+    this.log(`文件验证输出:\n${verifyUpload.stdout}`, 'info');
 
     if (verifyUpload.code !== 0) {
+      this.log(`文件上传验证失败: ${verifyUpload.stderr || '文件不存在'}`, 'error');
       throw new Error(`文件上传验证失败: ${verifyUpload.stderr || '文件不存在'}`);
     }
 
     // 判断是否为 tar.gz 压缩包
     const fileTypeOutput = verifyUpload.stdout;
     const isTarGz = fileTypeOutput.includes('gzip') || fileTypeOutput.includes('compressed');
-    console.log('文件类型:', isTarGz ? 'tar.gz 压缩包' : '可能是二进制文件');
+    this.log(`文件类型: ${isTarGz ? 'tar.gz 压缩包' : '可能是二进制文件'}`, 'info');
 
     // 步骤2: 解压或处理文件
     let extractCmd;
