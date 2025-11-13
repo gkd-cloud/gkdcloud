@@ -39,7 +39,12 @@ function updateLogViewer() {
     }
 }
 
-function toggleLogViewer() {
+function toggleLogViewer(event) {
+    // 阻止事件冒泡，防止触发外部点击关闭
+    if (event) {
+        event.stopPropagation();
+    }
+
     const modal = document.getElementById('log-viewer-modal');
     if (modal) {
         modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
