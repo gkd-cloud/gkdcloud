@@ -1,0 +1,27 @@
+{
+  "name": "soga-panel",
+  "version": "1.0.0",
+  "description": "Soga SSR 对接面板 - 用于一键部署和管理 Soga 实例",
+  "main": "server/app.js",
+  "scripts": {
+    "start": "node server/app.js",
+    "dev": "nodemon server/app.js"
+  },
+  "keywords": [
+    "soga",
+    "ssr",
+    "proxy",
+    "panel"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ssh2-promise": "^1.0.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}

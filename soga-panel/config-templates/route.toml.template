@@ -1,0 +1,87 @@
+# Soga 路由配置模板
+# 本文件用于配置流量路由规则
+
+# ===== 直连规则 (Direct) =====
+# 匹配的流量将直接连接，不经过代理
+
+[[direct]]
+# 域名直连示例
+# domain = "example.com"
+# domain = "*.google.com"
+
+# IP 直连示例
+# ip = "192.168.1.1"
+# ip = "10.0.0.0/8"
+
+# CIDR 直连示例
+# cidr = "192.168.0.0/16"
+# cidr = "172.16.0.0/12"
+
+# ===== 代理规则 (Proxy) =====
+# 匹配的流量将通过代理转发
+
+[[proxy]]
+# 域名代理示例
+# domain = "twitter.com"
+# domain = "*.facebook.com"
+
+# IP 代理示例
+# ip = "8.8.8.8"
+
+# CIDR 代理示例
+# cidr = "1.1.1.0/24"
+
+# ===== 阻断规则 (Block) =====
+# 匹配的流量将被阻断
+
+[[block]]
+# 域名阻断示例
+# domain = "ads.example.com"
+# domain = "*.tracker.com"
+
+# IP 阻断示例
+# ip = "127.0.0.1"
+
+# CIDR 阻断示例
+# cidr = "0.0.0.0/32"
+
+# ===== 常用配置示例 =====
+
+# 示例 1: 中国大陆 IP 直连
+# [[direct]]
+# cidr = "1.0.1.0/24"
+# cidr = "1.0.2.0/23"
+# cidr = "1.0.8.0/21"
+# ... 更多中国 IP 段
+
+# 示例 2: 常见广告域名阻断
+# [[block]]
+# domain = "*.doubleclick.net"
+# domain = "*.googlesyndication.com"
+# domain = "*.googleadservices.com"
+
+# 示例 3: 特定服务直连
+# [[direct]]
+# domain = "*.apple.com"
+# domain = "*.icloud.com"
+# domain = "*.cdn.apple.com"
+
+# 示例 4: BT/PT 流量直连
+# [[direct]]
+# domain = "tracker.opentrackr.org"
+# domain = "*.torrent.ubuntu.com"
+
+# ===== 规则优先级 =====
+# Block > Proxy > Direct
+# 即：阻断规则 > 代理规则 > 直连规则
+
+# ===== 通配符说明 =====
+# * 匹配任意字符
+# 示例: *.example.com 匹配 a.example.com, b.example.com
+# 示例: example.* 匹配 example.com, example.net
+
+# ===== 注意事项 =====
+# 1. 每个规则单独一行
+# 2. 使用 # 进行注释
+# 3. 规则不区分大小写
+# 4. IP 和 CIDR 规则支持 IPv4 和 IPv6

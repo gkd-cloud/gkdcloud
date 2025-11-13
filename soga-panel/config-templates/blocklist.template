@@ -1,0 +1,98 @@
+# Soga 黑名单配置模板
+# 每行一个规则，支持域名、IP、CIDR、正则表达式
+
+# ===== 广告域名 =====
+# 常见广告服务商
+doubleclick.net
+googlesyndication.com
+googleadservices.com
+google-analytics.com
+googletagmanager.com
+facebook.com/tr
+facebook.com/plugins
+*.ads.twitter.com
+*.ads.linkedin.com
+
+# ===== 追踪器 =====
+# 常见追踪服务
+*.tracker.com
+*.analytics.yahoo.com
+*.scorecardresearch.com
+*.quantserve.com
+*.mixpanel.com
+
+# ===== 恶意网站 =====
+# 已知的恶意或钓鱼网站
+# phishing-site.com
+# malware-site.com
+
+# ===== IP 黑名单 =====
+# 示例：阻止特定 IP
+# 192.168.1.100
+# 10.0.0.50
+
+# ===== CIDR 黑名单 =====
+# 示例：阻止 IP 段
+# 192.168.1.0/24
+# 10.0.0.0/8
+
+# ===== 正则表达式 =====
+# 使用 regexp: 前缀
+# regexp:^.*\.ads\..*$
+# regexp:^.*tracking.*$
+
+# ===== 中国大陆特定屏蔽 =====
+# 可选：屏蔽境内无法访问的服务
+# *.google.com
+# *.youtube.com
+# *.facebook.com
+# *.twitter.com
+# *.instagram.com
+# *.telegram.org
+
+# ===== BT/PT 站点 =====
+# 可选：屏蔽 BT/PT 流量（节省带宽）
+# tracker.opentrackr.org
+# *.torrent
+# *.torrent.*
+
+# ===== 挖矿域名 =====
+# 加密货币挖矿相关域名
+coinhive.com
+coin-hive.com
+*.coinhive.com
+*.coin-hive.com
+jsecoin.com
+*.jsecoin.com
+cryptoloot.pro
+*.cryptoloot.pro
+
+# ===== 国内视频网站 =====
+# 可选：屏蔽大流量视频站（节省带宽）
+# *.bilibili.com
+# *.iqiyi.com
+# *.qq.com
+# *.youku.com
+
+# ===== 游戏更新 =====
+# 可选：屏蔽游戏更新（节省带宽）
+# *.steampowered.com
+# *.epicgames.com
+# *.battle.net
+
+# ===== 自定义规则 =====
+# 在此添加您的自定义黑名单规则
+
+
+# ===== 使用说明 =====
+# 1. 每行一个规则
+# 2. 支持通配符 * 匹配任意字符
+# 3. 以 # 开头的行为注释
+# 4. 规则不区分大小写
+# 5. 支持域名、IP、CIDR、正则表达式
+
+# ===== 注意事项 =====
+# 1. 过度屏蔽可能影响正常使用
+# 2. 定期更新黑名单以应对新威胁
+# 3. 测试规则避免误杀
+# 4. 黑名单会略微影响性能，请适度使用
