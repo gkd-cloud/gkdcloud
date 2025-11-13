@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initModals();
     initAuthTypeSwitch();
+    initInstallModeSwitch();
     loadServers();
     loadInstances();
 });
@@ -128,6 +129,29 @@ function initAuthTypeSwitch() {
             elements.keyGroup.style.display = 'block';
             elements.passwordGroup.querySelector('input').required = false;
             elements.keyGroup.querySelector('textarea').required = true;
+        }
+    });
+}
+
+// 安装模式切换
+function initInstallModeSwitch() {
+    const installModeSelect = document.getElementById('install-mode-select');
+    const versionGroup = document.getElementById('soga-version-group');
+    const packageGroup = document.getElementById('soga-package-group');
+    const fileInput = document.getElementById('soga-file-input');
+
+    if (!installModeSelect) return;
+
+    installModeSelect.addEventListener('change', (e) => {
+        const mode = e.target.value;
+        if (mode === 'offline') {
+            versionGroup.style.display = 'none';
+            packageGroup.style.display = 'block';
+            fileInput.required = true;
+        } else {
+            versionGroup.style.display = 'block';
+            packageGroup.style.display = 'none';
+            fileInput.required = false;
         }
     });
 }
@@ -371,7 +395,7 @@ function loadServerSelect() {
 // 创建实例
 async function handleCreateInstance(e) {
     e.preventDefault();
-    
+
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData);
 
@@ -390,6 +414,35 @@ async function handleCreateInstance(e) {
         userSpeedLimit: parseInt(data.userSpeedLimit),
         enableDNS: data.enableDNS === 'on'
     };
+
+    // 处理安装模式
+    const installMode = data.installMode || 'online';
+    if (installMode === 'offline') {
+        // 离线模式：处理文件上传
+        const fileInput = document.getElementById('soga-file-input');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert('请选择 Soga 二进制文件');
+            return;
+        }
+
+        // 读取文件并转换为 base64
+        try {
+            const fileBase64 = await fileToBase64(file);
+            config.offlineMode = true;
+            config.sogaPackage = fileBase64;
+        } catch (error) {
+            alert('文件读取失败: ' + error.message);
+            return;
+        }
+    } else {
+        // 在线模式：使用版本号
+        config.offlineMode = false;
+        if (data.sogaVersion) {
+            config.sogaVersion = data.sogaVersion;
+        }
+    }
 
     // 处理路由配置
     if (data.routeConfig) {
@@ -417,6 +470,20 @@ async function handleCreateInstance(e) {
     } catch (error) {
         // Error already handled in apiCall
     }
+}
+
+// 文件转 Base64
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            // 提取 base64 部分（去除 data:xxx;base64, 前缀）
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+        };
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
+    });
 }
 
 // 启动实例

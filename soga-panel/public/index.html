@@ -114,6 +114,24 @@
                             <input type="text" name="instanceName" required placeholder="例如: node-hk-01">
                             <small>用于 systemd 服务命名，建议使用字母、数字、连字符</small>
                         </div>
+                        <div class="form-group">
+                            <label>安装模式 *</label>
+                            <select name="installMode" id="install-mode-select" required>
+                                <option value="online">在线安装（从 GitHub 下载）</option>
+                                <option value="offline">离线安装（上传本地文件）</option>
+                            </select>
+                            <small>如果无法连接 GitHub，请选择离线安装</small>
+                        </div>
+                        <div class="form-group" id="soga-version-group">
+                            <label>Soga 版本</label>
+                            <input type="text" name="sogaVersion" placeholder="latest 或指定版本号如 v1.7.1">
+                            <small>留空则使用最新版本</small>
+                        </div>
+                        <div class="form-group" id="soga-package-group" style="display: none;">
+                            <label>Soga 二进制文件 *</label>
+                            <input type="file" id="soga-file-input" accept="*">
+                            <small>请上传对应架构的 Soga 二进制文件（如 soga-linux-amd64）</small>
+                        </div>
                     </div>
 
                     <div class="form-section">
