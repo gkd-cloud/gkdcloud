@@ -622,12 +622,23 @@ async function handleCreateInstance(e) {
             return;
         }
 
+        const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+        console.log(`准备安装 Soga: ${file.name}, 大小: ${fileSizeMB} MB`);
+        addApiLog(`准备安装 Soga: ${file.name}, 大小: ${fileSizeMB} MB`, 'info');
+
         // 读取文件并转换为 base64
         try {
+            addApiLog('正在读取 Soga 文件并转换为 Base64...', 'info');
             const fileBase64 = await fileToBase64(file);
+            const base64SizeMB = (fileBase64.length / 1024 / 1024).toFixed(2);
+
+            console.log(`文件转换完成, Base64 大小: ${base64SizeMB} MB`);
+            addApiLog(`文件转换完成, Base64 大小: ${base64SizeMB} MB, 准备上传并安装`, 'success');
+
             config.offlineMode = true;
             config.sogaPackage = fileBase64;
         } catch (error) {
+            addApiLog(`文件读取失败: ${error.message}`, 'error');
             alert('文件读取失败: ' + error.message);
             return;
         }
@@ -644,6 +655,9 @@ async function handleCreateInstance(e) {
     }
 
     try {
+        console.log(`开始安装实例: ${data.instanceName}, 模式: ${installMode}`);
+        addApiLog(`开始安装实例: ${data.instanceName}, 模式: ${installMode}`, 'info');
+
         await apiCall('/soga/install', {
             method: 'POST',
             body: JSON.stringify({
@@ -653,13 +667,21 @@ async function handleCreateInstance(e) {
             })
         });
 
+        addApiLog(`实例 ${data.instanceName} 安装成功`, 'success');
         elements.createInstanceModal.style.display = 'none';
         alert('实例创建成功，正在启动...');
         loadInstances();
     } catch (error) {
+        addApiLog(`实例 ${data.instanceName} 安装失败: ${error.message}`, 'error');
+
         // 如果错误包含安装日志，显示日志模态框
         if (error.data && error.data.logs) {
             showInstallLogs(error.data.logs, error.message);
+        } else {
+            // 没有详细日志时，提醒用户查看API日志
+            if (!error.message.includes('未授权')) {
+                alert(`安装失败: ${error.message}\n\n详细信息请查看 API 日志（点击右下角📋按钮）`);
+            }
         }
         // Error already handled in apiCall with alert
     }
@@ -887,9 +909,15 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
     }
 
     // 检查文件大小（建议不超过 100MB）
-    const fileSizeMB = fileInput.files[0].size / 1024 / 1024;
+    const file = fileInput.files[0];
+    const fileSizeMB = file.size / 1024 / 1024;
+
+    console.log(`准备上传文件: ${file.name}, 大小: ${fileSizeMB.toFixed(2)} MB`);
+    addApiLog(`准备上传离线包: ${file.name}, 大小: ${fileSizeMB.toFixed(2)} MB`, 'info');
+
     if (fileSizeMB > 100) {
-        if (!confirm(`文件大小为 ${fileSizeMB.toFixed(2)} MB，上传可能需要较长时间。是否继续？`)) {
+        const msg = `文件大小为 ${fileSizeMB.toFixed(2)} MB，上传可能需要较长时间（预计 ${Math.ceil(fileSizeMB / 2)} 分钟）。是否继续？`;
+        if (!confirm(msg)) {
             return;
         }
     }
@@ -897,11 +925,21 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
     try {
         // 禁用提交按钮，显示上传进度
         submitBtn.disabled = true;
-        submitBtn.textContent = '正在读取文件...';
+        submitBtn.textContent = `正在读取文件 (${fileSizeMB.toFixed(2)} MB)...`;
 
-        const fileBase64 = await fileToBase64(fileInput.files[0]);
+        console.log('开始读取文件并转换为 Base64...');
+        addApiLog('开始读取文件并转换为 Base64...', 'info');
 
-        submitBtn.textContent = '正在上传...';
+        const fileBase64 = await fileToBase64(file);
+        const base64SizeMB = (fileBase64.length / 1024 / 1024).toFixed(2);
+
+        console.log(`文件转换完成, Base64 大小: ${base64SizeMB} MB`);
+        addApiLog(`文件转换完成, Base64 大小: ${base64SizeMB} MB`, 'success');
+
+        submitBtn.textContent = `正在上传到服务器 (${base64SizeMB} MB)...`;
+
+        console.log('开始上传到服务器...');
+        addApiLog('开始上传到服务器，请耐心等待...', 'info');
 
         await apiCall('/soga/packages', {
             method: 'POST',
@@ -916,6 +954,8 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
             })
         });
 
+        console.log('离线包上传成功！');
+        addApiLog('离线包上传成功！', 'success');
         alert('离线包上传成功！');
         elements.uploadPackageModal.style.display = 'none';
         elements.uploadPackageForm.reset();
@@ -923,6 +963,13 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
     } catch (error) {
         // Error already handled in apiCall
         console.error('上传离线包失败:', error);
+        addApiLog(`上传离线包失败: ${error.message}`, 'error');
+
+        // 如果不是401错误（401已经自动登出），显示详细错误信息
+        if (!error.message.includes('未授权')) {
+            const errorDetail = error.data ? JSON.stringify(error.data, null, 2) : error.message;
+            alert(`上传失败: ${error.message}\n\n详细信息请查看 API 日志（点击右下角📋按钮）`);
+        }
     } finally {
         // 恢复按钮状态
         submitBtn.disabled = false;
