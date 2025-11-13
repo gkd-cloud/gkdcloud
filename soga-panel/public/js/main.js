@@ -208,11 +208,15 @@ async function loadSavedPackagesDropdown() {
 
 // API 调用
 async function apiCall(endpoint, options = {}) {
+    let response;
+
     try {
         // 使用 AuthManager 获取认证头
         const authHeaders = AuthManager.getAuthHeaders();
 
-        const response = await fetch(`${API_BASE}${endpoint}`, {
+        console.log(`[API] 请求: ${endpoint}`);
+
+        response = await fetch(`${API_BASE}${endpoint}`, {
             headers: {
                 ...authHeaders,
                 ...options.headers
@@ -220,9 +224,11 @@ async function apiCall(endpoint, options = {}) {
             ...options
         });
 
-        // 先检查 401 状态
+        console.log(`[API] 响应状态: ${response.status}`);
+
+        // 先检查 401 状态（只有真正的 401 才登出）
         if (response.status === 401) {
-            // 如果是401未授权，跳转到登录页
+            console.warn('[API] 401 未授权，执行登出');
             AuthManager.logout();
             throw new Error('未授权，请重新登录');
         }
@@ -230,8 +236,12 @@ async function apiCall(endpoint, options = {}) {
         // 尝试解析 JSON
         let data;
         try {
+            const contentType = response.headers.get('content-type');
+            console.log(`[API] Content-Type: ${contentType}`);
+
             data = await response.json();
         } catch (jsonError) {
+            console.error('[API] JSON 解析失败:', jsonError);
             // 如果响应不是 JSON，可能是网络错误或服务器错误
             if (!response.ok) {
                 throw new Error(`服务器错误 (${response.status}): ${response.statusText}`);
@@ -240,12 +250,21 @@ async function apiCall(endpoint, options = {}) {
         }
 
         if (!response.ok) {
-            throw new Error(data.error || '请求失败');
+            console.error('[API] 请求失败:', data);
+            throw new Error(data.error || data.message || '请求失败');
         }
 
+        console.log(`[API] 请求成功`);
         return data;
     } catch (error) {
-        console.error('API Error:', error);
+        // 网络错误或 fetch 本身失败
+        if (!response) {
+            console.error('[API] 网络错误或请求失败:', error);
+            alert(`网络错误: ${error.message}`);
+            throw error;
+        }
+
+        console.error('[API] 处理错误:', error);
         // 只在非 401 错误时显示 alert
         if (!error.message.includes('未授权')) {
             alert(`错误: ${error.message}`);
