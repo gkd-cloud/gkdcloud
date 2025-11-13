@@ -104,60 +104,92 @@ class SogaInstaller {
   async installOffline(workDir, packageBase64) {
     console.log('上传离线 Soga 包...');
 
+    // 检查 base64 数据长度
+    console.log('Base64 数据长度:', packageBase64.length);
+
     // 上传文件并检测类型
     const uploadCmd = `
       cd /tmp && \\
-      echo "${packageBase64}" | base64 -d > soga_upload && \\
+      rm -f soga_upload soga soga.tar.gz && \\
+      echo "${packageBase64}" | base64 -d > soga_upload 2>&1 && \\
+      ls -lh soga_upload && \\
       file soga_upload
     `;
 
     const uploadResult = await this.ssh.execCommand(uploadCmd);
-    console.log('文件类型检测:', uploadResult.stdout);
+    console.log('=== 上传步骤 ===');
+    console.log('退出码:', uploadResult.code);
+    console.log('输出:', uploadResult.stdout);
+    console.log('错误:', uploadResult.stderr);
+
+    if (uploadResult.code !== 0) {
+      throw new Error(`文件上传失败: ${uploadResult.stderr || uploadResult.stdout || '未知错误'}`);
+    }
 
     // 判断是否为 tar.gz 压缩包
-    const isTarGz = uploadResult.stdout.includes('gzip') || uploadResult.stdout.includes('compressed');
+    const fileTypeOutput = uploadResult.stdout;
+    const isTarGz = fileTypeOutput.includes('gzip') || fileTypeOutput.includes('compressed');
+
+    console.log('文件类型判断:', isTarGz ? 'tar.gz 压缩包' : '二进制文件');
 
     let extractCmd;
     if (isTarGz) {
-      console.log('检测到 tar.gz 压缩包，正在解压...');
+      console.log('开始解压 tar.gz 包...');
       extractCmd = `
         cd /tmp && \\
         mv soga_upload soga.tar.gz && \\
-        tar -xzf soga.tar.gz && \\
+        tar -xzvf soga.tar.gz 2>&1 && \\
+        ls -lh soga && \\
         chmod +x soga && \\
         mv soga ${workDir}/soga && \\
         rm -f soga.tar.gz
       `;
     } else {
-      console.log('检测到二进制文件，直接安装...');
+      console.log('直接安装二进制文件...');
       extractCmd = `
         cd /tmp && \\
         mv soga_upload soga && \\
+        ls -lh soga && \\
         chmod +x soga && \\
         mv soga ${workDir}/soga
       `;
     }
 
     const extractResult = await this.ssh.execCommand(extractCmd);
+    console.log('=== 安装步骤 ===');
+    console.log('退出码:', extractResult.code);
+    console.log('输出:', extractResult.stdout);
+    console.log('错误:', extractResult.stderr);
+
     if (extractResult.code !== 0) {
-      console.error('安装命令错误:', extractResult.stderr);
-      throw new Error(`离线包安装失败: ${extractResult.stderr || extractResult.stdout || '未知错误'}`);
+      const errorMsg = extractResult.stderr || extractResult.stdout || '未知错误';
+      console.error('安装失败，详细信息:', errorMsg);
+      throw new Error(`离线包安装失败: ${errorMsg}`);
     }
 
     // 验证文件是否存在且可执行
-    const verifyResult = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK"`);
+    const verifyResult = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK" || echo "FAIL"`);
+    console.log('=== 验证步骤 ===');
+    console.log('验证结果:', verifyResult.stdout.trim());
+
     if (verifyResult.stdout.trim() !== 'OK') {
       // 尝试再次设置权限
+      console.log('尝试修复权限...');
       await this.ssh.execCommand(`chmod +x ${workDir}/soga`);
 
       // 再次验证
-      const retryVerify = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK"`);
+      const retryVerify = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK" || echo "FAIL"`);
+      console.log('重试验证结果:', retryVerify.stdout.trim());
+
       if (retryVerify.stdout.trim() !== 'OK') {
+        // 获取更多调试信息
+        const debugInfo = await this.ssh.execCommand(`ls -lh ${workDir}/soga; file ${workDir}/soga`);
+        console.error('调试信息:', debugInfo.stdout);
         throw new Error('Soga 文件安装失败或无法执行');
       }
     }
 
-    console.log('离线包安装成功');
+    console.log('离线包安装成功！');
   }
 
   // 更新 Soga 版本
