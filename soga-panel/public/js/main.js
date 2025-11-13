@@ -135,9 +135,12 @@ function initAuthTypeSwitch() {
 // API 调用
 async function apiCall(endpoint, options = {}) {
     try {
+        // 使用 AuthManager 获取认证头
+        const authHeaders = AuthManager.getAuthHeaders();
+
         const response = await fetch(`${API_BASE}${endpoint}`, {
             headers: {
-                'Content-Type': 'application/json',
+                ...authHeaders,
                 ...options.headers
             },
             ...options
@@ -146,6 +149,11 @@ async function apiCall(endpoint, options = {}) {
         const data = await response.json();
 
         if (!response.ok) {
+            // 如果是401未授权，跳转到登录页
+            if (response.status === 401) {
+                AuthManager.logout();
+                return;
+            }
             throw new Error(data.error || '请求失败');
         }
 

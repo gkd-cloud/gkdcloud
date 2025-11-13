@@ -66,6 +66,7 @@ download_file "force-update.sh" || exit 1
 download_file "auto-update.sh" || exit 1
 download_file "install-update-script.sh" || exit 1
 download_file "public/index.html" || exit 1
+download_file "public/js/main.js" || exit 1
 
 echo ""
 
@@ -85,7 +86,8 @@ echo -e "  1. Git 所有权检查错误"
 echo -e "  2. Git Remote 配置问题"
 echo -e "  3. 子目录部署问题"
 echo -e "  4. 登录页面跳转问题"
-echo -e "  5. 新增强制更新脚本"
+echo -e "  5. API 认证 token 未附加问题"
+echo -e "  6. 新增强制更新脚本"
 echo ""
 echo -e "${BLUE}备份位置:${NC}"
 echo -e "  ${BACKUP_DIR}"
