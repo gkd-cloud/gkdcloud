@@ -220,21 +220,36 @@ async function apiCall(endpoint, options = {}) {
             ...options
         });
 
-        const data = await response.json();
+        // 先检查 401 状态
+        if (response.status === 401) {
+            // 如果是401未授权，跳转到登录页
+            AuthManager.logout();
+            throw new Error('未授权，请重新登录');
+        }
+
+        // 尝试解析 JSON
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            // 如果响应不是 JSON，可能是网络错误或服务器错误
+            if (!response.ok) {
+                throw new Error(`服务器错误 (${response.status}): ${response.statusText}`);
+            }
+            throw new Error('响应格式错误');
+        }
 
         if (!response.ok) {
-            // 如果是401未授权，跳转到登录页
-            if (response.status === 401) {
-                AuthManager.logout();
-                return;
-            }
             throw new Error(data.error || '请求失败');
         }
 
         return data;
     } catch (error) {
         console.error('API Error:', error);
-        alert(`错误: ${error.message}`);
+        // 只在非 401 错误时显示 alert
+        if (!error.message.includes('未授权')) {
+            alert(`错误: ${error.message}`);
+        }
         throw error;
     }
 }
@@ -719,14 +734,30 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
     const arch = formData.get('arch');
     const description = formData.get('description');
     const fileInput = document.getElementById('package-file-input');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.textContent;
 
     if (!fileInput.files[0]) {
         alert('请选择文件');
         return;
     }
 
+    // 检查文件大小（建议不超过 100MB）
+    const fileSizeMB = fileInput.files[0].size / 1024 / 1024;
+    if (fileSizeMB > 100) {
+        if (!confirm(`文件大小为 ${fileSizeMB.toFixed(2)} MB，上传可能需要较长时间。是否继续？`)) {
+            return;
+        }
+    }
+
     try {
+        // 禁用提交按钮，显示上传进度
+        submitBtn.disabled = true;
+        submitBtn.textContent = '正在读取文件...';
+
         const fileBase64 = await fileToBase64(fileInput.files[0]);
+
+        submitBtn.textContent = '正在上传...';
 
         await apiCall('/soga/packages', {
             method: 'POST',
@@ -747,6 +778,11 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
         loadPackages();
     } catch (error) {
         // Error already handled in apiCall
+        console.error('上传离线包失败:', error);
+    } finally {
+        // 恢复按钮状态
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalBtnText;
     }
 });
 

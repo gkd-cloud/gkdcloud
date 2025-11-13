@@ -14,8 +14,15 @@ const PORT = process.env.PORT || 3000;
 
 // 中间件
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' })); // 增加限制以支持文件上传
-app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
+app.use(bodyParser.json({ limit: '100mb' })); // 增加限制以支持文件上传
+app.use(bodyParser.urlencoded({ extended: true, limit: '100mb' }));
+
+// 增加请求超时时间（5分钟）
+app.use((req, res, next) => {
+  req.setTimeout(300000); // 5 分钟
+  res.setTimeout(300000);
+  next();
+});
 
 // 静态文件
 app.use(express.static(path.join(__dirname, '../public')));
