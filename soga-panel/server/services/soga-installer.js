@@ -139,9 +139,9 @@ class SogaInstaller {
     const fileBuffer = Buffer.from(packageBase64, 'base64');
     console.log('文件大小:', (fileBuffer.length / 1024 / 1024).toFixed(2), 'MB');
 
-    // 使用 SFTP 上传
+    // 使用 SFTP 上传（设置读写权限）
     try {
-      await this.ssh.uploadFile(fileBuffer, remotePath);
+      await this.ssh.uploadFile(fileBuffer, remotePath, { mode: '644' });
       console.log('=== 步骤1: 上传文件 ===');
       console.log('SFTP 上传成功');
     } catch (error) {
@@ -206,6 +206,11 @@ class SogaInstaller {
       console.error('安装失败，详细信息:', errorMsg);
       throw new Error(`离线包安装失败: ${errorMsg}`);
     }
+
+    // 确保文件权限正确（额外保险）
+    console.log('=== 额外步骤: 确保权限 ===');
+    const ensurePermResult = await this.ssh.execCommand(`chmod +x ${workDir}/soga && ls -lh ${workDir}/soga`);
+    console.log('权限确认:', ensurePermResult.stdout);
 
     // 步骤3: 验证文件是否存在且可执行
     const verifyResult = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK" || echo "FAIL"`);
