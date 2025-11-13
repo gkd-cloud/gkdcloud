@@ -102,23 +102,46 @@ class SogaInstaller {
 
   // 离线安装
   async installOffline(workDir, packageBase64) {
-    console.log('上传离线 Soga 二进制文件...');
+    console.log('上传离线 Soga 包...');
 
-    // 直接上传二进制文件（不是 tar.gz）
+    // 上传文件并检测类型
     const uploadCmd = `
       cd /tmp && \\
-      echo "${packageBase64}" | base64 -d > soga && \\
-      chmod +x soga && \\
-      file soga && \\
-      mv soga ${workDir}/soga
+      echo "${packageBase64}" | base64 -d > soga_upload && \\
+      file soga_upload
     `;
 
     const uploadResult = await this.ssh.execCommand(uploadCmd);
-    console.log('上传命令输出:', uploadResult.stdout);
+    console.log('文件类型检测:', uploadResult.stdout);
 
-    if (uploadResult.code !== 0) {
-      console.error('上传命令错误:', uploadResult.stderr);
-      throw new Error(`离线包安装失败: ${uploadResult.stderr || uploadResult.stdout || '未知错误'}`);
+    // 判断是否为 tar.gz 压缩包
+    const isTarGz = uploadResult.stdout.includes('gzip') || uploadResult.stdout.includes('compressed');
+
+    let extractCmd;
+    if (isTarGz) {
+      console.log('检测到 tar.gz 压缩包，正在解压...');
+      extractCmd = `
+        cd /tmp && \\
+        mv soga_upload soga.tar.gz && \\
+        tar -xzf soga.tar.gz && \\
+        chmod +x soga && \\
+        mv soga ${workDir}/soga && \\
+        rm -f soga.tar.gz
+      `;
+    } else {
+      console.log('检测到二进制文件，直接安装...');
+      extractCmd = `
+        cd /tmp && \\
+        mv soga_upload soga && \\
+        chmod +x soga && \\
+        mv soga ${workDir}/soga
+      `;
+    }
+
+    const extractResult = await this.ssh.execCommand(extractCmd);
+    if (extractResult.code !== 0) {
+      console.error('安装命令错误:', extractResult.stderr);
+      throw new Error(`离线包安装失败: ${extractResult.stderr || extractResult.stdout || '未知错误'}`);
     }
 
     // 验证文件是否存在且可执行
@@ -130,7 +153,7 @@ class SogaInstaller {
       // 再次验证
       const retryVerify = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK"`);
       if (retryVerify.stdout.trim() !== 'OK') {
-        throw new Error('Soga 文件上传失败或无法执行');
+        throw new Error('Soga 文件安装失败或无法执行');
       }
     }
 
