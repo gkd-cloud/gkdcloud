@@ -102,15 +102,19 @@ class SogaInstaller {
 
   // 在线安装
   async installOnline(workDir, downloadUrl) {
-    console.log(`下载 Soga: ${downloadUrl}`);
+    this.log(`下载 Soga: ${downloadUrl}`, 'info');
 
     // 先测试网络连接
+    this.log('测试 GitHub 连接...', 'info');
     const testResult = await this.ssh.execCommand('curl -I https://github.com --connect-timeout 10');
     if (testResult.code !== 0) {
+      this.log('无法连接到 GitHub', 'error');
       throw new Error('无法连接到 GitHub，请检查网络或使用离线模式');
     }
+    this.log('GitHub 连接正常', 'success');
 
     // 下载并解压 tar.gz 包（参考官方脚本）
+    this.log('=== 步骤1: 下载并解压 ===', 'info');
     const downloadCmd = `
       cd /usr/local && \\
       rm -f soga.tar.gz soga && \\
@@ -126,39 +130,44 @@ class SogaInstaller {
     `;
 
     const downloadResult = await this.ssh.execCommand(downloadCmd);
-    console.log('=== 下载步骤 ===');
-    console.log('退出码:', downloadResult.code);
-    console.log('输出:', downloadResult.stdout);
-    if (downloadResult.stderr) console.log('错误:', downloadResult.stderr);
+    this.log(`退出码: ${downloadResult.code}`, downloadResult.code === 0 ? 'success' : 'error');
+    this.log(`输出:\n${downloadResult.stdout}`, 'info');
+    if (downloadResult.stderr) {
+      this.log(`stderr:\n${downloadResult.stderr}`, 'warn');
+    }
 
     if (downloadResult.code !== 0) {
-      throw new Error(`下载失败: ${downloadResult.stderr || downloadResult.stdout || '未知错误'}`);
+      const errorMsg = downloadResult.stderr || downloadResult.stdout || '未知错误';
+      this.log(`下载失败: ${errorMsg}`, 'error');
+      throw new Error(`下载失败: ${errorMsg}`);
     }
 
     // 验证文件是否存在且可执行
+    this.log('=== 步骤2: 验证安装 ===', 'info');
     const verifyResult = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK" || echo "FAIL"`);
-    console.log('=== 验证步骤 ===');
-    console.log('验证结果:', verifyResult.stdout.trim());
+    this.log(`验证结果: ${verifyResult.stdout.trim()}`, 'info');
 
     if (verifyResult.stdout.trim() !== 'OK') {
       // 获取详细信息
+      this.log('验证失败，获取调试信息...', 'warn');
       const debugInfo = await this.ssh.execCommand(`ls -lh ${workDir}/soga 2>&1 && file ${workDir}/soga 2>&1`);
-      console.log('调试信息:', debugInfo.stdout);
+      this.log(`调试信息:\n${debugInfo.stdout}`, 'info');
 
       // 尝试修复权限
-      console.log('尝试修复权限...');
+      this.log('尝试修复权限...', 'warn');
       const fixResult = await this.ssh.execCommand(`chmod +x ${workDir}/soga && ls -lh ${workDir}/soga`);
-      console.log('修复结果:', fixResult.stdout);
+      this.log(`修复结果:\n${fixResult.stdout}`, 'info');
 
       // 再次验证
       const retryVerify = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK" || echo "FAIL"`);
       if (retryVerify.stdout.trim() !== 'OK') {
+        this.log('Soga 文件无法执行，权限修复失败', 'error');
         throw new Error(`Soga 文件无法执行，权限修复失败: ${debugInfo.stdout}`);
       }
-      console.log('权限修复成功');
+      this.log('权限修复成功', 'success');
     }
 
-    console.log('Soga 下载成功');
+    this.log('Soga 下载成功', 'success');
   }
 
   // 离线安装（参考官方脚本，使用 SFTP 上传）
