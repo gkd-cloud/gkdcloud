@@ -68,6 +68,7 @@ download_file "install-update-script.sh" || exit 1
 download_file "public/index.html" || exit 1
 download_file "public/js/main.js" || exit 1
 download_file "server/services/soga-installer.js" || exit 1
+download_file "server/utils/config-generator.js" || exit 1
 
 echo ""
 
