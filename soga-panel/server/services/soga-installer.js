@@ -297,8 +297,8 @@ WantedBy=multi-user.target
 
   // 获取下载地址
   getDownloadUrl(version, arch) {
-    const baseUrl = 'https://github.com/sprov065/soga/releases';
-    
+    const baseUrl = 'https://github.com/vaxilu/soga/releases';
+
     if (version === 'latest') {
       return `${baseUrl}/latest/download/soga-linux-${arch}`;
     } else {
