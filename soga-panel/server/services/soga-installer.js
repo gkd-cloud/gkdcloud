@@ -99,27 +99,36 @@ class SogaInstaller {
 
   // 离线安装
   async installOffline(workDir, packageBase64) {
-    console.log('上传离线 Soga 包...');
-    
-    // 上传 tar.gz 包
+    console.log('上传离线 Soga 二进制文件...');
+
+    // 直接上传二进制文件（不是 tar.gz）
     const uploadCmd = `
       cd /tmp && \\
-      echo "${packageBase64}" | base64 -d > soga.tar.gz && \\
-      tar -xzf soga.tar.gz && \\
+      echo "${packageBase64}" | base64 -d > soga && \\
       chmod +x soga && \\
-      mv soga ${workDir}/soga && \\
-      rm -f soga.tar.gz
+      file soga && \\
+      mv soga ${workDir}/soga
     `;
-    
+
     const uploadResult = await this.ssh.execCommand(uploadCmd);
+    console.log('上传命令输出:', uploadResult.stdout);
+
     if (uploadResult.code !== 0) {
-      throw new Error(`离线包安装失败: ${uploadResult.stderr || '未知错误'}`);
+      console.error('上传命令错误:', uploadResult.stderr);
+      throw new Error(`离线包安装失败: ${uploadResult.stderr || uploadResult.stdout || '未知错误'}`);
     }
 
-    // 验证文件
+    // 验证文件是否存在且可执行
     const verifyResult = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK"`);
     if (verifyResult.stdout.trim() !== 'OK') {
-      throw new Error('Soga 文件解压失败或无法执行');
+      // 尝试再次设置权限
+      await this.ssh.execCommand(`chmod +x ${workDir}/soga`);
+
+      // 再次验证
+      const retryVerify = await this.ssh.execCommand(`test -x ${workDir}/soga && echo "OK"`);
+      if (retryVerify.stdout.trim() !== 'OK') {
+        throw new Error('Soga 文件上传失败或无法执行');
+      }
     }
 
     console.log('离线包安装成功');

@@ -79,6 +79,7 @@ copy_file() {
 
 # 创建目录（如果需要）
 mkdir -p "$TARGET_DIR/public/js"
+mkdir -p "$TARGET_DIR/server/services"
 
 # 复制所有文件
 copy_file "force-update.sh" || exit 1
@@ -86,6 +87,7 @@ copy_file "auto-update.sh" || exit 1
 copy_file "install-update-script.sh" || exit 1
 copy_file "public/index.html" || exit 1
 copy_file "public/js/main.js" || exit 1
+copy_file "server/services/soga-installer.js" || exit 1
 
 echo ""
 
@@ -106,7 +108,9 @@ echo -e "  2. Git Remote 配置问题"
 echo -e "  3. 子目录部署问题"
 echo -e "  4. 登录页面跳转问题"
 echo -e "  5. API 认证 token 未附加问题"
-echo -e "  6. 新增强制更新脚本"
+echo -e "  6. 离线安装 Unable to exec 错误"
+echo -e "  7. 新增离线安装模式"
+echo -e "  8. 新增强制更新脚本"
 echo ""
 echo -e "${BLUE}备份位置:${NC}"
 echo -e "  ${BACKUP_DIR}"
