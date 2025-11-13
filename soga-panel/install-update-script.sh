@@ -65,7 +65,14 @@ if [ ! -d ".git" ]; then
     # 如果不是 git 仓库，初始化并添加远程仓库
     echo -e "${YELLOW}  初始化 Git 仓库...${NC}"
     git init
-    git remote add origin "https://github.com/${GITHUB_REPO}.git" 2>/dev/null || \
+fi
+
+# 确保 remote origin 正确配置
+if ! git remote get-url origin &>/dev/null; then
+    echo -e "${YELLOW}  添加远程仓库...${NC}"
+    git remote add origin "https://github.com/${GITHUB_REPO}.git"
+else
+    # remote 存在，确保 URL 正确
     git remote set-url origin "https://github.com/${GITHUB_REPO}.git"
 fi
 
