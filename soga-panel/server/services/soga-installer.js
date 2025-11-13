@@ -109,33 +109,40 @@ class SogaInstaller {
     console.log('Soga 下载成功');
   }
 
-  // 离线安装（参考官方脚本）
+  // 离线安装（参考官方脚本，使用 SFTP 上传）
   async installOffline(workDir, packageBase64) {
     console.log('上传离线 Soga 包...');
     console.log('Base64 数据长度:', packageBase64.length);
 
-    // 步骤1: 上传文件到 /usr/local（与官方脚本路径一致）
-    const uploadCmd = `
-      cd /usr/local && \\
-      rm -f soga.tar.gz soga && \\
-      echo "${packageBase64}" | base64 -d > soga.tar.gz 2>&1 && \\
-      echo "文件上传完成" && \\
-      ls -lh soga.tar.gz && \\
-      file soga.tar.gz
-    `;
+    // 步骤1: 使用 SFTP 上传文件到 /usr/local（与官方脚本路径一致）
+    const remotePath = '/usr/local/soga.tar.gz';
 
-    const uploadResult = await this.ssh.execCommand(uploadCmd);
-    console.log('=== 步骤1: 上传文件 ===');
-    console.log('退出码:', uploadResult.code);
-    console.log('输出:', uploadResult.stdout);
-    if (uploadResult.stderr) console.log('错误:', uploadResult.stderr);
+    // 清理旧文件
+    await this.ssh.execCommand('rm -f /usr/local/soga.tar.gz /usr/local/soga');
 
-    if (uploadResult.code !== 0) {
-      throw new Error(`文件上传失败: ${uploadResult.stderr || uploadResult.stdout || '未知错误'}`);
+    // 将 base64 转换为 Buffer
+    const fileBuffer = Buffer.from(packageBase64, 'base64');
+    console.log('文件大小:', (fileBuffer.length / 1024 / 1024).toFixed(2), 'MB');
+
+    // 使用 SFTP 上传
+    try {
+      await this.ssh.uploadFile(fileBuffer, remotePath);
+      console.log('=== 步骤1: 上传文件 ===');
+      console.log('SFTP 上传成功');
+    } catch (error) {
+      throw new Error(`文件上传失败: ${error.message}`);
+    }
+
+    // 验证上传的文件
+    const verifyUpload = await this.ssh.execCommand(`ls -lh ${remotePath} && file ${remotePath}`);
+    console.log('文件验证:', verifyUpload.stdout);
+
+    if (verifyUpload.code !== 0) {
+      throw new Error(`文件上传验证失败: ${verifyUpload.stderr || '文件不存在'}`);
     }
 
     // 判断是否为 tar.gz 压缩包
-    const fileTypeOutput = uploadResult.stdout;
+    const fileTypeOutput = verifyUpload.stdout;
     const isTarGz = fileTypeOutput.includes('gzip') || fileTypeOutput.includes('compressed');
     console.log('文件类型:', isTarGz ? 'tar.gz 压缩包' : '可能是二进制文件');
 
