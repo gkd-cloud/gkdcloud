@@ -93,7 +93,30 @@ if [ "$LOCAL_HASH" = "$REMOTE_HASH" ]; then
     exit 0
 fi
 
-git reset --hard origin/$BRANCH
+# 拉取最新代码到临时目录
+TEMP_DIR=$(mktemp -d)
+git clone --branch "$BRANCH" --depth=1 "https://github.com/${GITHUB_REPO}.git" "$TEMP_DIR" 2>/dev/null || {
+    echo -e "${RED}✗ 拉取代码失败${NC}"
+    rm -rf "$TEMP_DIR"
+    exit 1
+}
+
+# 检查是否 soga-panel 在子目录中
+if [ -d "$TEMP_DIR/soga-panel" ]; then
+    echo -e "${YELLOW}  检测到 soga-panel 子目录，正在同步...${NC}"
+    SOURCE_DIR="$TEMP_DIR/soga-panel"
+else
+    SOURCE_DIR="$TEMP_DIR"
+fi
+
+# 同步代码（排除 data 目录和 node_modules）
+rsync -av --exclude='data' --exclude='node_modules' --exclude='.git' "$SOURCE_DIR/" ./ 2>/dev/null || {
+    # 如果 rsync 不可用，使用 cp
+    find "$SOURCE_DIR" -mindepth 1 -maxdepth 1 ! -name 'data' ! -name 'node_modules' ! -name '.git' -exec cp -r {} ./ \; 2>/dev/null
+}
+
+# 清理临时目录
+rm -rf "$TEMP_DIR"
 
 # 恢复数据目录
 if [ -d "$BACKUP_DIR/data" ]; then
