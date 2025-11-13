@@ -385,6 +385,29 @@
         </div>
     </div>
 
+    <!-- 诊断结果模态框 -->
+    <div id="diagnose-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>Soga 权限诊断</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="diagnose-info" id="diagnose-info" style="margin-bottom: 15px;">
+                    <strong>服务器:</strong> <span id="diagnose-server-name"></span><br>
+                    <strong>实例:</strong> <span id="diagnose-instance-name"></span>
+                </div>
+                <div class="logs-container">
+                    <pre id="diagnose-output"></pre>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="close-diagnose-btn">关闭</button>
+                    <button type="button" class="btn btn-primary" id="rerun-diagnose-btn">重新运行</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <p>Soga Panel v1.0.0 | Powered by Node.js</p>
     </footer>

@@ -110,8 +110,8 @@ router.delete('/:id', async (req, res) => {
     // 检查是否有关联的实例
     const hasInstances = data.instances.some(i => i.serverId === req.params.id);
     if (hasInstances) {
-      return res.status(400).json({ 
-        error: '该服务器上还有 Soga 实例，请先删除所有实例' 
+      return res.status(400).json({
+        error: '该服务器上还有 Soga 实例，请先删除所有实例'
       });
     }
 
@@ -119,6 +119,45 @@ router.delete('/:id', async (req, res) => {
     await writeData(data);
 
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 运行 Soga 诊断脚本
+router.post('/:id/diagnose/:instanceName?', async (req, res) => {
+  try {
+    const data = await readData();
+    const server = data.servers.find(s => s.id === req.params.id);
+
+    if (!server) {
+      return res.status(404).json({ error: '服务器不存在' });
+    }
+
+    const instanceName = req.params.instanceName || 'soga-test';
+
+    // 读取诊断脚本
+    const scriptPath = path.join(__dirname, '../../diagnose-soga.sh');
+    const scriptContent = await fs.readFile(scriptPath, 'utf8');
+
+    const ssh = new SSHService(server);
+    await ssh.connect();
+
+    // 上传并执行诊断脚本
+    const remotePath = '/tmp/diagnose-soga.sh';
+    await ssh.uploadFile(Buffer.from(scriptContent), remotePath, { mode: '755' });
+
+    // 执行诊断脚本
+    const result = await ssh.execCommand(`bash ${remotePath} ${instanceName}`);
+
+    ssh.dispose();
+
+    res.json({
+      success: true,
+      output: result.stdout,
+      error: result.stderr,
+      exitCode: result.code
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
