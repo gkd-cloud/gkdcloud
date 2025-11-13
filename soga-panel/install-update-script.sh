@@ -56,6 +56,11 @@ echo ""
 
 # 2. 检查 git 状态
 echo -e "${BLUE}[2/7]${NC} 检查更新..."
+
+# 添加当前目录为 Git 安全目录（解决 Git 2.35.2+ 的所有权检查问题）
+CURRENT_DIR=$(pwd)
+git config --global --add safe.directory "$CURRENT_DIR" 2>/dev/null || true
+
 if [ ! -d ".git" ]; then
     # 如果不是 git 仓库，初始化并添加远程仓库
     echo -e "${YELLOW}  初始化 Git 仓库...${NC}"
