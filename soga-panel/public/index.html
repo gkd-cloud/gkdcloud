@@ -135,27 +135,96 @@
                     </div>
 
                     <div class="form-section">
-                        <h4>面板对接配置</h4>
-                        <div class="form-group">
-                            <label>面板类型 *</label>
-                            <select name="panelType" required>
-                                <option value="sspanel">SSPanel</option>
-                                <option value="v2board">V2board</option>
-                                <option value="proxypanel">ProxyPanel</option>
-                                <option value="sspanel-uim">SSPanel-UIM</option>
-                            </select>
+                        <h4>基础配置（必填）</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>面板类型 *</label>
+                                <select name="panelType" required>
+                                    <option value="sspanel-uim" selected>SSPanel-UIM</option>
+                                    <option value="xboard">XBoard</option>
+                                    <option value="v2board">V2board</option>
+                                    <option value="xiaov2board">XiaoV2board</option>
+                                    <option value="whmcs">WHMCS</option>
+                                    <option value="proxypanel">ProxyPanel</option>
+                                    <option value="v2raysocks">V2raySocks</option>
+                                    <option value="soga-v1">Soga-V1</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>后端类型 *</label>
+                                <select name="serverType" required>
+                                    <option value="v2ray" selected>V2Ray</option>
+                                    <option value="trojan">Trojan</option>
+                                    <option value="ss">Shadowsocks</option>
+                                    <option value="ssr">ShadowsocksR</option>
+                                    <option value="vless">VLESS</option>
+                                    <option value="hysteria">Hysteria</option>
+                                </select>
+                            </div>
                         </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>对接方式 *</label>
+                                <select name="api" id="api-select" required>
+                                    <option value="webapi" selected>WebAPI</option>
+                                    <option value="db">数据库直连</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Soga 授权码</label>
+                                <input type="text" name="sogaKey" placeholder="留空表示不需要授权">
+                                <small>某些版本可能需要授权码</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section" id="webapi-config">
+                        <h4>WebAPI 对接配置</h4>
                         <div class="form-group">
                             <label>面板地址 *</label>
-                            <input type="url" name="panelUrl" required placeholder="https://panel.example.com">
+                            <input type="url" name="panelUrl" placeholder="https://panel.example.com">
                         </div>
                         <div class="form-group">
-                            <label>面板密钥/Token *</label>
-                            <input type="text" name="panelKey" required placeholder="面板的 muKey 或 WebAPI Token">
+                            <label>WebAPI 密钥 *</label>
+                            <input type="text" name="panelKey" placeholder="面板的 muKey 或 WebAPI Token">
                         </div>
                         <div class="form-group">
                             <label>节点 ID *</label>
-                            <input type="number" name="nodeId" required placeholder="面板中的节点 ID">
+                            <input type="text" name="nodeId" placeholder="单个节点ID或多个以逗号分隔: 1,2,3">
+                            <small>可配置多个节点（v2.7.1+），每个节点必须是相同的后端类型</small>
+                        </div>
+                    </div>
+
+                    <div class="form-section" id="db-config" style="display: none;">
+                        <h4>数据库对接配置</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>数据库地址 *</label>
+                                <input type="text" name="dbHost" placeholder="localhost">
+                            </div>
+                            <div class="form-group">
+                                <label>数据库端口 *</label>
+                                <input type="number" name="dbPort" value="3306">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>数据库名 *</label>
+                                <input type="text" name="dbName" placeholder="sspanel">
+                            </div>
+                            <div class="form-group">
+                                <label>数据库用户 *</label>
+                                <input type="text" name="dbUser" value="root">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>数据库密码 *</label>
+                            <input type="password" name="dbPassword" placeholder="数据库密码">
+                        </div>
+                        <div class="form-group">
+                            <label>节点 ID *</label>
+                            <input type="text" name="nodeIdDb" placeholder="单个节点ID或多个以逗号分隔: 1,2,3">
+                            <small>可配置多个节点（v2.7.1+），每个节点必须是相同的后端类型</small>
                         </div>
                     </div>
 

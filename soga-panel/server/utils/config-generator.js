@@ -2,19 +2,40 @@ class ConfigGenerator {
   // 生成 soga.conf
   generateSogaConf(config) {
     const {
-      panelType = 'sspanel',
+      // 基础配置
+      panelType = 'sspanel-uim',
+      serverType = 'v2ray',
+      nodeId,
+      sogaKey = '',
+      api = 'webapi',
+      // WebAPI 对接配置
       panelUrl,
       panelKey,
-      nodeId,
+      // 数据库对接配置（可选）
+      dbHost = '',
+      dbPort = 3306,
+      dbName = '',
+      dbUser = 'root',
+      dbPassword = '',
+      dbMaxIdleTime = 480,
+      dbMaxIdleConn = 4,
+      dbMaxConn = 4,
+      // DNS 配置
+      defaultDns = '',
+      dnsCacheTime = 10,
+      dnsStrategy = 'ipv4_first',
+      dnsType = 'tcp',
+      enableDNS = false,
+      dnsListenPort = 53,
+      // 证书配置
       certFile,
       keyFile,
       certDomain,
+      // 日志配置
       logLevel = 'info',
       logFile = '',
-      dnsType = 'tcp',
+      // 其他配置
       enableProxyProtocol = false,
-      enableDNS = false,
-      dnsListenPort = 53,
       checkInterval = 60,
       userConnLimit = 0,
       userSpeedLimit = 0,
@@ -24,17 +45,55 @@ class ConfigGenerator {
     } = config;
 
     let conf = `# Soga 配置文件
-# 面板类型
+# 基础配置（必填）
 type=${panelType}
-
-# 面板地址
-server_addr=${panelUrl}
-
-# 面板密钥/Token
-server_key=${panelKey}
-
-# 节点 ID
+server_type=${serverType}
 node_id=${nodeId}
+`;
+
+    // 授权码（可选）
+    if (sogaKey) {
+      conf += `soga_key=${sogaKey}\n`;
+    }
+
+    conf += `api=${api}
+
+# 对接配置
+`;
+
+    // WebAPI 对接
+    if (api === 'webapi') {
+      conf += `webapi_url=${panelUrl}
+webapi_key=${panelKey}
+`;
+    }
+
+    // 数据库对接
+    if (api === 'db' || dbHost) {
+      conf += `db_host=${dbHost}
+db_port=${dbPort}
+db_name=${dbName}
+db_user=${dbUser}
+db_password=${dbPassword}
+db_max_idle_time=${dbMaxIdleTime}
+db_max_idle_conn=${dbMaxIdleConn}
+db_max_conn=${dbMaxConn}
+`;
+    }
+
+    // DNS 配置
+    conf += `
+# DNS 配置
+`;
+    if (defaultDns) {
+      conf += `default_dns=${defaultDns}
+`;
+    }
+    conf += `dns_cache_time=${dnsCacheTime}
+dns_strategy=${dnsStrategy}
+dns_type=${dnsType}
+enable_dns=${enableDNS}
+dns_listen_port=${dnsListenPort}
 
 # 证书配置
 `;

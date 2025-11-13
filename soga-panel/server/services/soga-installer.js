@@ -66,21 +66,24 @@ class SogaInstaller {
   // 在线安装
   async installOnline(workDir, downloadUrl) {
     console.log(`下载 Soga: ${downloadUrl}`);
-    
+
     // 先测试网络连接
     const testResult = await this.ssh.execCommand('curl -I https://github.com --connect-timeout 10');
     if (testResult.code !== 0) {
       throw new Error('无法连接到 GitHub，请检查网络或使用离线模式');
     }
 
+    // 下载并解压 tar.gz 包
     const downloadCmd = `
       cd /tmp && \\
       rm -f soga soga-* && \\
-      wget --timeout=60 --tries=3 -O soga "${downloadUrl}" 2>&1 && \\
+      wget --no-check-certificate --timeout=60 --tries=3 -O soga.tar.gz "${downloadUrl}" 2>&1 && \\
+      tar -xzf soga.tar.gz && \\
       chmod +x soga && \\
-      mv soga ${workDir}/soga
+      mv soga ${workDir}/soga && \\
+      rm -f soga.tar.gz
     `;
-    
+
     const downloadResult = await this.ssh.execCommand(downloadCmd);
     if (downloadResult.code !== 0) {
       console.error('下载失败，输出：', downloadResult.stdout);
@@ -299,10 +302,20 @@ WantedBy=multi-user.target
   getDownloadUrl(version, arch) {
     const baseUrl = 'https://github.com/vaxilu/soga/releases';
 
+    // 架构名称映射（tar.gz 文件使用的名称）
+    const archNameMap = {
+      'amd64': 'amd',
+      'arm64': 'arm64',
+      'armv7': 'armv7',
+      '386': '386'
+    };
+
+    const archName = archNameMap[arch] || 'amd';
+
     if (version === 'latest') {
-      return `${baseUrl}/latest/download/soga-linux-${arch}`;
+      return `${baseUrl}/latest/download/soga-linux-${archName}.tar.gz`;
     } else {
-      return `${baseUrl}/download/${version}/soga-linux-${arch}`;
+      return `${baseUrl}/download/${version}/soga-linux-${archName}.tar.gz`;
     }
   }
 
