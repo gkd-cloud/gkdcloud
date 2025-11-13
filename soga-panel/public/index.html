@@ -16,6 +16,7 @@
         <div class="tabs">
             <button class="tab-btn active" data-tab="servers">服务器管理</button>
             <button class="tab-btn" data-tab="instances">实例管理</button>
+            <button class="tab-btn" data-tab="packages">离线包管理</button>
         </div>
 
         <!-- 服务器管理 Tab -->
@@ -39,6 +40,21 @@
 
             <div id="instances-list" class="cards-container">
                 <!-- 实例列表将在这里动态加载 -->
+            </div>
+        </div>
+
+        <!-- 离线包管理 Tab -->
+        <div id="packages-tab" class="tab-content">
+            <div class="section-header">
+                <h2>离线安装包</h2>
+                <button class="btn btn-primary" id="upload-package-btn">➕ 上传离线包</button>
+            </div>
+            <div class="info-box">
+                <p>💡 提示：上传 Soga 离线包到服务器，创建实例时可直接选择，无需每次重新上传</p>
+            </div>
+
+            <div id="packages-list" class="cards-container">
+                <!-- 离线包列表将在这里动态加载 -->
             </div>
         </div>
     </div>
@@ -118,7 +134,8 @@
                             <label>安装模式 *</label>
                             <select name="installMode" id="install-mode-select" required>
                                 <option value="online">在线安装（从 GitHub 下载）</option>
-                                <option value="offline">离线安装（上传本地文件）</option>
+                                <option value="offline-saved">离线安装（选择已保存的包）</option>
+                                <option value="offline-upload">离线安装（临时上传文件）</option>
                             </select>
                             <small>如果无法连接 GitHub，请选择离线安装</small>
                         </div>
@@ -126,6 +143,13 @@
                             <label>Soga 版本</label>
                             <input type="text" name="sogaVersion" placeholder="latest 或指定版本号如 v1.7.1">
                             <small>留空则使用最新版本</small>
+                        </div>
+                        <div class="form-group" id="saved-package-group" style="display: none;">
+                            <label>选择离线包 *</label>
+                            <select id="saved-package-select">
+                                <option value="">请选择已保存的离线包</option>
+                            </select>
+                            <small>从已上传的离线包中选择（<a href="#" id="goto-packages-link">管理离线包</a>）</small>
                         </div>
                         <div class="form-group" id="soga-package-group" style="display: none;">
                             <label>Soga 文件 *</label>
@@ -316,6 +340,47 @@
                     <button type="button" class="btn btn-secondary" id="close-logs-btn">关闭</button>
                     <button type="button" class="btn btn-primary" id="refresh-logs-btn">刷新</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上传离线包模态框 -->
+    <div id="upload-package-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>上传离线安装包</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="upload-package-form">
+                    <div class="form-group">
+                        <label>包名称 *</label>
+                        <input type="text" name="name" required placeholder="例如: soga-v1.7.1">
+                        <small>用于识别此离线包的唯一名称</small>
+                    </div>
+                    <div class="form-group">
+                        <label>架构 *</label>
+                        <select name="arch" required>
+                            <option value="amd64">amd64 (x86_64)</option>
+                            <option value="arm64">arm64 (aarch64)</option>
+                            <option value="armv7">armv7</option>
+                            <option value="386">386 (x86)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Soga 文件 *</label>
+                        <input type="file" id="package-file-input" accept="*" required>
+                        <small>支持 tar.gz 压缩包或二进制文件</small>
+                    </div>
+                    <div class="form-group">
+                        <label>描述（可选）</label>
+                        <textarea name="description" rows="3" placeholder="例如: Soga v1.7.1 官方版本，适用于 amd64 架构"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-upload-package-btn">取消</button>
+                        <button type="submit" class="btn btn-primary">上传并保存</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

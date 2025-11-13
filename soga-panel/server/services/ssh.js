@@ -165,6 +165,30 @@ class SSHService {
     this.dispose();
     return result.stdout;
   }
+
+  // 上传文件 (使用 SFTP)
+  async uploadFile(localBuffer, remotePath) {
+    if (!this.ssh) {
+      throw new Error('SSH 未连接');
+    }
+
+    try {
+      const sftp = this.ssh.sftp();
+
+      // 确保远程目录存在
+      const remoteDir = remotePath.substring(0, remotePath.lastIndexOf('/'));
+      await this.execCommand(`mkdir -p ${remoteDir}`);
+
+      // 上传文件
+      await sftp.writeFile(remotePath, localBuffer);
+      console.log(`文件上传成功: ${remotePath}`);
+
+      return { success: true, path: remotePath };
+    } catch (error) {
+      console.error('文件上传失败:', error);
+      throw new Error(`文件上传失败: ${error.message}`);
+    }
+  }
 }
 
 module.exports = SSHService;

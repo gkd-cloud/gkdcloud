@@ -4,6 +4,7 @@ const API_BASE = '/api';
 const state = {
     servers: [],
     instances: [],
+    packages: [],
     currentTab: 'servers',
     currentServer: null,
     currentInstance: null
@@ -14,12 +15,16 @@ const elements = {
     tabBtns: document.querySelectorAll('.tab-btn'),
     serversList: document.getElementById('servers-list'),
     instancesList: document.getElementById('instances-list'),
+    packagesList: document.getElementById('packages-list'),
     addServerBtn: document.getElementById('add-server-btn'),
     addServerModal: document.getElementById('add-server-modal'),
     addServerForm: document.getElementById('add-server-form'),
     createInstanceBtn: document.getElementById('create-instance-btn'),
     createInstanceModal: document.getElementById('create-instance-modal'),
     createInstanceForm: document.getElementById('create-instance-form'),
+    uploadPackageBtn: document.getElementById('upload-package-btn'),
+    uploadPackageModal: document.getElementById('upload-package-modal'),
+    uploadPackageForm: document.getElementById('upload-package-form'),
     logsModal: document.getElementById('logs-modal'),
     authTypeSelect: document.getElementById('auth-type'),
     passwordGroup: document.getElementById('password-group'),
@@ -34,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initInstallModeSwitch();
     loadServers();
     loadInstances();
+    loadPackages();
 });
 
 // 标签页切换
@@ -137,23 +143,67 @@ function initAuthTypeSwitch() {
 function initInstallModeSwitch() {
     const installModeSelect = document.getElementById('install-mode-select');
     const versionGroup = document.getElementById('soga-version-group');
+    const savedPackageGroup = document.getElementById('saved-package-group');
     const packageGroup = document.getElementById('soga-package-group');
     const fileInput = document.getElementById('soga-file-input');
+    const savedPackageSelect = document.getElementById('saved-package-select');
 
     if (!installModeSelect) return;
 
-    installModeSelect.addEventListener('change', (e) => {
+    installModeSelect.addEventListener('change', async (e) => {
         const mode = e.target.value;
-        if (mode === 'offline') {
-            versionGroup.style.display = 'none';
-            packageGroup.style.display = 'block';
-            fileInput.required = true;
-        } else {
+
+        if (mode === 'online') {
             versionGroup.style.display = 'block';
+            savedPackageGroup.style.display = 'none';
             packageGroup.style.display = 'none';
-            fileInput.required = false;
+            if (fileInput) fileInput.required = false;
+            if (savedPackageSelect) savedPackageSelect.required = false;
+        } else if (mode === 'offline-saved') {
+            versionGroup.style.display = 'none';
+            savedPackageGroup.style.display = 'block';
+            packageGroup.style.display = 'none';
+            if (fileInput) fileInput.required = false;
+            if (savedPackageSelect) savedPackageSelect.required = true;
+
+            // 加载已保存的离线包到下拉列表
+            await loadSavedPackagesDropdown();
+        } else if (mode === 'offline-upload') {
+            versionGroup.style.display = 'none';
+            savedPackageGroup.style.display = 'none';
+            packageGroup.style.display = 'block';
+            if (fileInput) fileInput.required = true;
+            if (savedPackageSelect) savedPackageSelect.required = false;
         }
     });
+
+    // 管理离线包链接
+    document.getElementById('goto-packages-link')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        elements.createInstanceModal.style.display = 'none';
+        switchTab('packages');
+    });
+}
+
+// 加载已保存的离线包到下拉列表
+async function loadSavedPackagesDropdown() {
+    try {
+        const data = await apiCall('/soga/packages');
+        const select = document.getElementById('saved-package-select');
+
+        if (!select) return;
+
+        select.innerHTML = '<option value="">请选择已保存的离线包</option>';
+
+        (data.packages || []).forEach(pkg => {
+            const option = document.createElement('option');
+            option.value = pkg.id;
+            option.textContent = `${pkg.name} (${pkg.arch}) - ${formatSize(pkg.size)}`;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('加载离线包列表失败:', error);
+    }
 }
 
 // API 调用
@@ -417,13 +467,38 @@ async function handleCreateInstance(e) {
 
     // 处理安装模式
     const installMode = data.installMode || 'online';
-    if (installMode === 'offline') {
-        // 离线模式：处理文件上传
+    if (installMode === 'online') {
+        // 在线模式：使用版本号
+        config.offlineMode = false;
+        if (data.sogaVersion) {
+            config.sogaVersion = data.sogaVersion;
+        }
+    } else if (installMode === 'offline-saved') {
+        // 离线模式：使用已保存的离线包
+        const savedPackageSelect = document.getElementById('saved-package-select');
+        const packageId = savedPackageSelect.value;
+
+        if (!packageId) {
+            alert('请选择已保存的离线包');
+            return;
+        }
+
+        // 从服务器获取离线包内容
+        try {
+            const result = await apiCall(`/soga/packages/${packageId}/content`);
+            config.offlineMode = true;
+            config.sogaPackage = result.content;
+        } catch (error) {
+            alert('获取离线包失败，请重试');
+            return;
+        }
+    } else if (installMode === 'offline-upload') {
+        // 离线模式：临时上传文件
         const fileInput = document.getElementById('soga-file-input');
         const file = fileInput.files[0];
 
         if (!file) {
-            alert('请选择 Soga 二进制文件');
+            alert('请选择 Soga 文件');
             return;
         }
 
@@ -435,12 +510,6 @@ async function handleCreateInstance(e) {
         } catch (error) {
             alert('文件读取失败: ' + error.message);
             return;
-        }
-    } else {
-        // 在线模式：使用版本号
-        config.offlineMode = false;
-        if (data.sogaVersion) {
-            config.sogaVersion = data.sogaVersion;
         }
     }
 
@@ -571,4 +640,136 @@ function formatDate(dateString) {
         hour: '2-digit',
         minute: '2-digit'
     });
+}
+
+// ==================== 离线包管理 ====================
+
+// 加载离线包列表
+async function loadPackages() {
+    try {
+        const data = await apiCall('/soga/packages');
+        state.packages = data.packages || [];
+        renderPackages();
+    } catch (error) {
+        // Error already handled in apiCall
+    }
+}
+
+// 渲染离线包列表
+function renderPackages() {
+    if (!elements.packagesList) return;
+
+    if (state.packages.length === 0) {
+        elements.packagesList.innerHTML = `
+            <div class="empty-state">
+                <p>还没有上传离线包</p>
+                <p>点击"上传离线包"按钮来添加</p>
+            </div>
+        `;
+        return;
+    }
+
+    elements.packagesList.innerHTML = state.packages.map(pkg => `
+        <div class="card">
+            <div class="card-header">
+                <h3>${pkg.name}</h3>
+                <div class="card-actions">
+                    <button class="btn btn-sm btn-danger" onclick="deletePackage('${pkg.id}')">删除</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="info-row">
+                    <span class="label">架构:</span>
+                    <span class="value">${pkg.arch}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">文件大小:</span>
+                    <span class="value">${formatSize(pkg.size)}</span>
+                </div>
+                ${pkg.description ? `
+                <div class="info-row">
+                    <span class="label">描述:</span>
+                    <span class="value">${pkg.description}</span>
+                </div>
+                ` : ''}
+                <div class="info-row">
+                    <span class="label">上传时间:</span>
+                    <span class="value">${formatDate(pkg.createdAt)}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 上传离线包
+elements.uploadPackageBtn?.addEventListener('click', () => {
+    elements.uploadPackageModal.style.display = 'block';
+});
+
+document.getElementById('cancel-upload-package-btn')?.addEventListener('click', () => {
+    elements.uploadPackageModal.style.display = 'none';
+    elements.uploadPackageForm.reset();
+});
+
+elements.uploadPackageForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+    const name = formData.get('name');
+    const arch = formData.get('arch');
+    const description = formData.get('description');
+    const fileInput = document.getElementById('package-file-input');
+
+    if (!fileInput.files[0]) {
+        alert('请选择文件');
+        return;
+    }
+
+    try {
+        const fileBase64 = await fileToBase64(fileInput.files[0]);
+
+        await apiCall('/soga/packages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name,
+                arch,
+                fileBase64,
+                description
+            })
+        });
+
+        alert('离线包上传成功！');
+        elements.uploadPackageModal.style.display = 'none';
+        elements.uploadPackageForm.reset();
+        loadPackages();
+    } catch (error) {
+        // Error already handled in apiCall
+    }
+});
+
+// 删除离线包
+async function deletePackage(id) {
+    if (!confirm('确定要删除此离线包吗？')) {
+        return;
+    }
+
+    try {
+        await apiCall(`/soga/packages/${id}`, {
+            method: 'DELETE'
+        });
+        alert('离线包删除成功');
+        loadPackages();
+    } catch (error) {
+        // Error already handled in apiCall
+    }
+}
+
+// 格式化文件大小
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(2) + ' MB';
 }

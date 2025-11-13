@@ -6,6 +6,23 @@ const SogaInstaller = require('../services/soga-installer');
 const SSHService = require('../services/ssh');
 
 const DATA_FILE = path.join(__dirname, '../../data/servers.json');
+const PACKAGES_DIR = path.join(__dirname, '../../data/offline-packages');
+const PACKAGES_INDEX = path.join(__dirname, '../../data/offline-packages.json');
+
+// 确保离线包目录存在
+(async () => {
+  try {
+    await fs.mkdir(PACKAGES_DIR, { recursive: true });
+    // 如果索引文件不存在，创建空数组
+    try {
+      await fs.access(PACKAGES_INDEX);
+    } catch {
+      await fs.writeFile(PACKAGES_INDEX, JSON.stringify([], null, 2));
+    }
+  } catch (error) {
+    console.error('初始化离线包目录失败:', error);
+  }
+})();
 
 // 读取数据
 const readData = async () => {
@@ -16,6 +33,21 @@ const readData = async () => {
 // 写入数据
 const writeData = async (data) => {
   await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+};
+
+// 读取离线包索引
+const readPackages = async () => {
+  try {
+    const data = await fs.readFile(PACKAGES_INDEX, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+};
+
+// 写入离线包索引
+const writePackages = async (packages) => {
+  await fs.writeFile(PACKAGES_INDEX, JSON.stringify(packages, null, 2));
 };
 
 // 获取所有实例
@@ -280,6 +312,112 @@ router.delete('/:serverId/:instanceName', async (req, res) => {
     }
 
     res.json({ success: result.success, message: result.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== 离线包管理 ====================
+
+// 获取所有离线包
+router.get('/packages', async (req, res) => {
+  try {
+    const packages = await readPackages();
+    res.json({ success: true, packages });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 上传离线包并保存
+router.post('/packages', async (req, res) => {
+  try {
+    const { name, arch, fileBase64, description } = req.body;
+
+    if (!name || !arch || !fileBase64) {
+      return res.status(400).json({ error: '缺少必要参数' });
+    }
+
+    // 检查名称是否已存在
+    const packages = await readPackages();
+    if (packages.some(p => p.name === name)) {
+      return res.status(400).json({ error: '该名称的离线包已存在' });
+    }
+
+    // 保存文件
+    const fileBuffer = Buffer.from(fileBase64, 'base64');
+    const fileName = `${name}-${arch}-${Date.now()}.tar.gz`;
+    const filePath = path.join(PACKAGES_DIR, fileName);
+
+    await fs.writeFile(filePath, fileBuffer);
+
+    // 添加到索引
+    const packageInfo = {
+      id: Date.now().toString(),
+      name,
+      arch,
+      fileName,
+      size: fileBuffer.length,
+      description: description || '',
+      createdAt: new Date().toISOString()
+    };
+
+    packages.push(packageInfo);
+    await writePackages(packages);
+
+    res.json({ success: true, package: packageInfo });
+  } catch (error) {
+    console.error('上传离线包失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 删除离线包
+router.delete('/packages/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const packages = await readPackages();
+
+    const index = packages.findIndex(p => p.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: '离线包不存在' });
+    }
+
+    const pkg = packages[index];
+
+    // 删除文件
+    try {
+      await fs.unlink(path.join(PACKAGES_DIR, pkg.fileName));
+    } catch (error) {
+      console.warn('删除文件失败:', error.message);
+    }
+
+    // 从索引中删除
+    packages.splice(index, 1);
+    await writePackages(packages);
+
+    res.json({ success: true, message: '离线包删除成功' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取离线包文件内容（用于安装）
+router.get('/packages/:id/content', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const packages = await readPackages();
+
+    const pkg = packages.find(p => p.id === id);
+    if (!pkg) {
+      return res.status(404).json({ error: '离线包不存在' });
+    }
+
+    const filePath = path.join(PACKAGES_DIR, pkg.fileName);
+    const fileBuffer = await fs.readFile(filePath);
+    const base64Content = fileBuffer.toString('base64');
+
+    res.json({ success: true, content: base64Content });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
