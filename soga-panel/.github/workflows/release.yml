@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Create release package
+        run: |
+          tar -czf soga-panel-v${{ steps.version.outputs.VERSION }}.tar.gz \
+            --exclude='node_modules' \
+            --exclude='data/servers.json' \
+            --exclude='data/auth.json' \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='*.log' \
+            --exclude='backup_*' \
+            --exclude='*.tar.gz' \
+            .
+      
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          CHANGELOG=$(awk "/## v${VERSION}/,/^## v[0-9]/" CHANGELOG.md | sed '1d;$d')
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release v${{ steps.version.outputs.VERSION }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          files: soga-panel-v${{ steps.version.outputs.VERSION }}.tar.gz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Update latest release info
+        run: |
+          echo "Release v${{ steps.version.outputs.VERSION }} published successfully!"
+          echo "Download URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.VERSION }}/soga-panel-v${{ steps.version.outputs.VERSION }}.tar.gz"

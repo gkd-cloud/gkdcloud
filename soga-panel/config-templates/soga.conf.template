@@ -1,0 +1,95 @@
+# Soga 配置文件模板
+# 本文件为模板参考，实际配置由系统自动生成
+
+# ===== 基础配置 =====
+
+# 面板类型: sspanel, v2board, proxypanel, sspanel-uim
+type={{PANEL_TYPE}}
+
+# 面板地址（必填）
+server_addr={{PANEL_URL}}
+
+# 面板密钥/Token（必填）
+# SSPanel: muKey
+# V2board: WebAPI Token
+server_key={{PANEL_KEY}}
+
+# 节点 ID（必填）
+node_id={{NODE_ID}}
+
+# ===== 证书配置 =====
+
+# 证书文件路径
+# cert_file={{CERT_FILE}}
+
+# 密钥文件路径
+# key_file={{KEY_FILE}}
+
+# 证书域名
+# cert_domain={{CERT_DOMAIN}}
+
+# ===== 日志配置 =====
+
+# 日志级别: debug, info, warning, error
+log_level=info
+
+# 日志文件路径（留空则输出到 systemd journal）
+# log_file=/var/log/soga/{{INSTANCE_NAME}}.log
+
+# ===== DNS 配置 =====
+
+# DNS 类型: tcp, udp, doh
+dns_type=tcp
+
+# 启用 DNS 服务
+enable_dns=false
+
+# DNS 监听端口
+dns_listen_port=53
+
+# ===== 性能配置 =====
+
+# 检测间隔（秒）
+check_interval=60
+
+# 单用户连接数限制（0 为不限制）
+user_conn_limit=0
+
+# 单用户速度限制（Mbps，0 为不限制）
+user_speed_limit=0
+
+# ===== 高级配置 =====
+
+# 启用 Proxy Protocol
+enable_proxy_protocol=false
+
+# 禁用本地 RESTful API
+disable_local_rest_api=false
+
+# 本地 API 监听地址
+# local_api_listen=127.0.0.1:8080
+
+# ===== 规则列表 =====
+
+# 本地规则列表（直连）
+# local_rule_list=
+
+# 转发规则列表（代理）
+# forward_rule_list=
+
+# 阻断规则列表（黑名单）
+# block_rule_list=
+
+# ===== 其他配置 =====
+
+# 禁用上报
+# disable_upload_traffic=false
+
+# 禁用下载
+# disable_download_traffic=false
+
+# 禁用快照
+# disable_snapshot=false
+
+# 自定义出站接口
+# bind_interface=eth0

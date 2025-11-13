@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soga Panel - SSR 对接面板</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Soga Panel</h1>
+            <p class="subtitle">SSR 对接面板 - 一键部署与管理</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="servers">服务器管理</button>
+            <button class="tab-btn" data-tab="instances">实例管理</button>
+        </div>
+
+        <!-- 服务器管理 Tab -->
+        <div id="servers-tab" class="tab-content active">
+            <div class="section-header">
+                <h2>服务器列表</h2>
+                <button class="btn btn-primary" id="add-server-btn">➕ 添加服务器</button>
+            </div>
+
+            <div id="servers-list" class="cards-container">
+                <!-- 服务器列表将在这里动态加载 -->
+            </div>
+        </div>
+
+        <!-- 实例管理 Tab -->
+        <div id="instances-tab" class="tab-content">
+            <div class="section-header">
+                <h2>Soga 实例列表</h2>
+                <button class="btn btn-primary" id="create-instance-btn">➕ 创建实例</button>
+            </div>
+
+            <div id="instances-list" class="cards-container">
+                <!-- 实例列表将在这里动态加载 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加服务器模态框 -->
+    <div id="add-server-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>添加服务器</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="add-server-form">
+                    <div class="form-group">
+                        <label>服务器名称 *</label>
+                        <input type="text" name="name" required placeholder="例如: 香港节点-01">
+                    </div>
+                    <div class="form-group">
+                        <label>IP 地址 *</label>
+                        <input type="text" name="host" required placeholder="例如: 192.168.1.100">
+                    </div>
+                    <div class="form-group">
+                        <label>SSH 端口</label>
+                        <input type="number" name="port" value="22" placeholder="默认: 22">
+                    </div>
+                    <div class="form-group">
+                        <label>用户名 *</label>
+                        <input type="text" name="username" required value="root">
+                    </div>
+                    <div class="form-group">
+                        <label>认证方式</label>
+                        <select id="auth-type">
+                            <option value="password">密码</option>
+                            <option value="key">私钥</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="password-group">
+                        <label>SSH 密码 *</label>
+                        <input type="password" name="password" placeholder="SSH 密码">
+                    </div>
+                    <div class="form-group" id="key-group" style="display: none;">
+                        <label>SSH 私钥 *</label>
+                        <textarea name="privateKey" rows="6" placeholder="粘贴私钥内容"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-server-btn">取消</button>
+                        <button type="submit" class="btn btn-primary">添加</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建实例模态框 -->
+    <div id="create-instance-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>创建 Soga 实例</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="create-instance-form">
+                    <div class="form-section">
+                        <h4>基础配置</h4>
+                        <div class="form-group">
+                            <label>目标服务器 *</label>
+                            <select name="serverId" id="server-select" required>
+                                <option value="">请选择服务器</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>实例名称 *</label>
+                            <input type="text" name="instanceName" required placeholder="例如: node-hk-01">
+                            <small>用于 systemd 服务命名，建议使用字母、数字、连字符</small>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>面板对接配置</h4>
+                        <div class="form-group">
+                            <label>面板类型 *</label>
+                            <select name="panelType" required>
+                                <option value="sspanel">SSPanel</option>
+                                <option value="v2board">V2board</option>
+                                <option value="proxypanel">ProxyPanel</option>
+                                <option value="sspanel-uim">SSPanel-UIM</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>面板地址 *</label>
+                            <input type="url" name="panelUrl" required placeholder="https://panel.example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>面板密钥/Token *</label>
+                            <input type="text" name="panelKey" required placeholder="面板的 muKey 或 WebAPI Token">
+                        </div>
+                        <div class="form-group">
+                            <label>节点 ID *</label>
+                            <input type="number" name="nodeId" required placeholder="面板中的节点 ID">
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>证书配置（可选）</h4>
+                        <div class="form-group">
+                            <label>证书域名</label>
+                            <input type="text" name="certDomain" placeholder="example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>证书文件内容</label>
+                            <textarea name="certFile" rows="4" placeholder="粘贴证书文件内容（PEM 格式）"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>私钥文件内容</label>
+                            <textarea name="keyFile" rows="4" placeholder="粘贴私钥文件内容（PEM 格式）"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>高级配置</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>日志级别</label>
+                                <select name="logLevel">
+                                    <option value="debug">Debug</option>
+                                    <option value="info" selected>Info</option>
+                                    <option value="warning">Warning</option>
+                                    <option value="error">Error</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>检测间隔（秒）</label>
+                                <input type="number" name="checkInterval" value="60">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>用户连接数限制</label>
+                                <input type="number" name="userConnLimit" value="0" placeholder="0 表示不限制">
+                            </div>
+                            <div class="form-group">
+                                <label>用户速度限制（Mbps）</label>
+                                <input type="number" name="userSpeedLimit" value="0" placeholder="0 表示不限制">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" name="enableDNS">
+                                启用 DNS 服务
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>路由配置（可选）</h4>
+                        <div class="form-group">
+                            <label>路由规则（route.toml）</label>
+                            <textarea name="routeConfig" rows="6" placeholder="留空则不创建路由配置文件"></textarea>
+                            <small>直接粘贴 TOML 格式的路由配置</small>
+                        </div>
+                        <div class="form-group">
+                            <label>黑名单配置（blocklist）</label>
+                            <textarea name="blockList" rows="6" placeholder="每行一个规则，支持域名、IP、CIDR"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-instance-btn">取消</button>
+                        <button type="submit" class="btn btn-primary">创建实例</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 实例日志模态框 -->
+    <div id="logs-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>实例日志</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="logs-container">
+                    <pre id="logs-content"></pre>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="close-logs-btn">关闭</button>
+                    <button type="button" class="btn btn-primary" id="refresh-logs-btn">刷新</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Soga Panel v1.0.0 | Powered by Node.js</p>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
