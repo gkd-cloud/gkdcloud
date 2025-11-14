@@ -634,6 +634,35 @@ google.com
         </div>
     </div>
 
+    <!-- 监控图表模态框 -->
+    <div id="monitor-chart-modal" class="modal">
+        <div class="modal-content" style="max-width: 1200px;">
+            <div class="modal-header">
+                <h3>服务器监控 - <span id="monitor-server-name"></span></h3>
+                <span class="close" onclick="closeMonitorChart()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="duration-selector" style="margin-bottom: 20px; text-align: center;">
+                    <button class="btn btn-sm duration-btn active" onclick="changeMonitorDuration('1h')">1 小时</button>
+                    <button class="btn btn-sm duration-btn" onclick="changeMonitorDuration('6h')">6 小时</button>
+                    <button class="btn btn-sm duration-btn" onclick="changeMonitorDuration('24h')">24 小时</button>
+                    <button class="btn btn-sm duration-btn" onclick="changeMonitorDuration('7d')">7 天</button>
+                </div>
+                <div class="charts-grid" style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+                    <div class="chart-container">
+                        <canvas id="cpu-chart" width="1000" height="300"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="memory-chart" width="1000" height="300"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="disk-chart" width="1000" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <p>Soga Panel v1.0.0 | Powered by Node.js</p>
     </footer>

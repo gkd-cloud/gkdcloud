@@ -3,6 +3,8 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs').promises;
+const https = require('https');
+const http = require('http');
 
 const { AuthService, authMiddleware } = require('./services/auth');
 const authRoutes = require('./routes/auth');
@@ -10,6 +12,8 @@ const serverRoutes = require('./routes/server');
 const sogaRoutes = require('./routes/soga');
 const routeConfigsRoutes = require('./routes/route-configs');
 const versionRoutes = require('./routes/version');
+const monitorRoutes = require('./routes/monitor');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -55,6 +59,8 @@ app.use('/api/servers', authMiddleware, serverRoutes);
 app.use('/api/soga', authMiddleware, sogaRoutes);
 app.use('/api/route-configs', authMiddleware, routeConfigsRoutes);
 app.use('/api/version', authMiddleware, versionRoutes);
+app.use('/api/monitor', authMiddleware, monitorRoutes);
+app.use('/api/settings', authMiddleware, settingsRoutes);
 
 // 健康检查（不需要认证）
 app.get('/api/health', (req, res) => {
@@ -92,7 +98,10 @@ app.use((err, req, res, next) => {
 // 启动服务器
 const startServer = async () => {
   await initDataDir();
-  app.listen(PORT, () => {
+
+  // 始终启动 HTTP 服务器
+  const httpServer = http.createServer(app);
+  httpServer.listen(PORT, () => {
     console.log(`=================================`);
     console.log(`Soga Panel 已启动`);
     console.log(`访问地址: http://localhost:${PORT}`);
@@ -103,6 +112,32 @@ const startServer = async () => {
     console.log(`！！！请立即登录并修改密码！！！`);
     console.log(`=================================`);
   });
+
+  // 尝试启动 HTTPS 服务器
+  try {
+    const settingsFile = path.join(__dirname, 'data/settings.json');
+    try {
+      const settingsData = await fs.readFile(settingsFile, 'utf8');
+      const settings = JSON.parse(settingsData);
+
+      if (settings.https && settings.https.enabled && settings.https.certType === 'manual') {
+        const cert = await fs.readFile(settings.https.certPath, 'utf8');
+        const key = await fs.readFile(settings.https.keyPath, 'utf8');
+
+        const httpsOptions = { key, cert };
+        const httpsServer = https.createServer(httpsOptions, app);
+        const httpsPort = settings.https.port || 443;
+
+        httpsServer.listen(httpsPort, () => {
+          console.log(`HTTPS 服务器已启动: https://localhost:${httpsPort}`);
+        });
+      }
+    } catch (error) {
+      // 设置文件不存在或 HTTPS 未启用，仅使用 HTTP
+    }
+  } catch (error) {
+    console.error('启动 HTTPS 服务器失败:', error.message);
+  }
 };
 
 startServer().catch(err => {

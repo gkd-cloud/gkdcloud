@@ -564,6 +564,34 @@ function renderServers() {
                 <div class="card-title">🖥️ ${server.name}</div>
             </div>
             <div class="card-body">
+                <div class="server-monitor" id="monitor-${server.id}">
+                    <div class="monitor-stats">
+                        <div class="stat-item">
+                            <div class="stat-label">CPU</div>
+                            <div class="stat-bar">
+                                <div class="stat-bar-fill" style="width: 0%"></div>
+                            </div>
+                            <div class="stat-value">--</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">内存</div>
+                            <div class="stat-bar">
+                                <div class="stat-bar-fill" style="width: 0%"></div>
+                            </div>
+                            <div class="stat-value">--</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">磁盘</div>
+                            <div class="stat-bar">
+                                <div class="stat-bar-fill" style="width: 0%"></div>
+                            </div>
+                            <div class="stat-value">--</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-primary" onclick="showMonitorChart('${server.id}', '${server.name}')" style="margin-top: 10px; width: 100%;">
+                        📊 查看详细图表
+                    </button>
+                </div>
                 <div class="card-info">
                     <div class="card-info-item">
                         <span class="card-info-label">IP 地址:</span>
@@ -595,6 +623,11 @@ function renderServers() {
             </div>
         </div>
     `).join('');
+
+    // 加载每个服务器的监控数据
+    state.servers.forEach(server => {
+        loadServerMonitor(server.id);
+    });
 }
 
 // 添加服务器
@@ -1696,3 +1729,227 @@ function closeUpdateModal() {
 
 // 添加关闭按钮事件
 elements.updateModal?.querySelector('.close')?.addEventListener('click', closeUpdateModal);
+
+// ==================== 服务器监控 ====================
+
+// 加载服务器监控数据
+async function loadServerMonitor(serverId) {
+    try {
+        const response = await apiCall(`/monitor/${serverId}/stats`, {}, false);
+
+        if (response.success && response.stats) {
+            updateMonitorDisplay(serverId, response.stats);
+        }
+    } catch (error) {
+        console.error('加载监控数据失败:', error);
+        // 静默失败，不显示错误
+    }
+}
+
+// 更新监控显示
+function updateMonitorDisplay(serverId, stats) {
+    const monitorEl = document.getElementById(`monitor-${serverId}`);
+    if (!monitorEl) return;
+
+    const statItems = monitorEl.querySelectorAll('.stat-item');
+
+    // CPU
+    const cpuBar = statItems[0].querySelector('.stat-bar-fill');
+    const cpuValue = statItems[0].querySelector('.stat-value');
+    cpuBar.style.width = `${stats.cpu.usage}%`;
+    cpuBar.style.backgroundColor = getColorForUsage(stats.cpu.usage);
+    cpuValue.textContent = `${stats.cpu.usage}%`;
+
+    // 内存
+    const memBar = statItems[1].querySelector('.stat-bar-fill');
+    const memValue = statItems[1].querySelector('.stat-value');
+    memBar.style.width = `${stats.memory.usage}%`;
+    memBar.style.backgroundColor = getColorForUsage(stats.memory.usage);
+    memValue.textContent = `${stats.memory.usage}% (${stats.memory.used.toFixed(1)}G/${stats.memory.total.toFixed(1)}G)`;
+
+    // 磁盘
+    const diskBar = statItems[2].querySelector('.stat-bar-fill');
+    const diskValue = statItems[2].querySelector('.stat-value');
+    diskBar.style.width = `${stats.disk.usage}%`;
+    diskBar.style.backgroundColor = getColorForUsage(stats.disk.usage);
+    diskValue.textContent = `${stats.disk.usage}% (${stats.disk.used}/${stats.disk.total})`;
+}
+
+// 根据使用率获取颜色
+function getColorForUsage(usage) {
+    if (usage < 60) return '#4CAF50'; // 绿色
+    if (usage < 80) return '#FF9800'; // 橙色
+    return '#f44336'; // 红色
+}
+
+// 显示监控图表
+async function showMonitorChart(serverId, serverName) {
+    const modal = document.getElementById('monitor-chart-modal');
+    const serverNameEl = document.getElementById('monitor-server-name');
+
+    serverNameEl.textContent = serverName;
+    modal.style.display = 'flex';
+
+    // 保存当前服务器 ID
+    state.currentMonitorServerId = serverId;
+
+    // 加载历史数据并绘制图表
+    await loadAndDrawCharts(serverId);
+}
+
+// 加载并绘制图表
+async function loadAndDrawCharts(serverId, duration = '1h') {
+    try {
+        const response = await apiCall(`/monitor/${serverId}/history?duration=${duration}`);
+
+        if (response.success && response.history) {
+            drawChart('cpu-chart', response.history, 'CPU 使用率', 'cpu');
+            drawChart('memory-chart', response.history, '内存使用率', 'memory');
+            drawChart('disk-chart', response.history, '磁盘使用率', 'disk');
+        }
+    } catch (error) {
+        console.error('加载历史数据失败:', error);
+    }
+}
+
+// 绘制图表
+function drawChart(canvasId, data, title, dataKey) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    const padding = 40;
+    const chartWidth = width - padding * 2;
+    const chartHeight = height - padding * 2;
+
+    // 清空画布
+    ctx.clearRect(0, 0, width, height);
+
+    // 绘制背景
+    ctx.fillStyle = '#f9f9f9';
+    ctx.fillRect(0, 0, width, height);
+
+    // 绘制标题
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(title, width / 2, 20);
+
+    // 获取数据
+    const values = data[dataKey];
+    if (!values || values.length === 0) return;
+
+    const maxValue = 100; // 百分比最大值
+    const minValue = 0;
+
+    // 绘制网格线和 Y 轴标签
+    ctx.strokeStyle = '#ddd';
+    ctx.fillStyle = '#666';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.lineWidth = 1;
+
+    for (let i = 0; i <= 5; i++) {
+        const y = padding + (chartHeight / 5) * i;
+        const value = maxValue - (maxValue / 5) * i;
+
+        // 网格线
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(width - padding, y);
+        ctx.stroke();
+
+        // Y 轴标签
+        ctx.fillText(value.toFixed(0) + '%', padding - 5, y + 3);
+    }
+
+    // 绘制 X 轴网格线
+    const step = Math.floor(values.length / 5);
+    for (let i = 0; i < values.length; i += step) {
+        const x = padding + (chartWidth / (values.length - 1)) * i;
+
+        ctx.beginPath();
+        ctx.moveTo(x, padding);
+        ctx.lineTo(x, height - padding);
+        ctx.stroke();
+    }
+
+    // 绘制数据线
+    ctx.strokeStyle = '#2196F3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    values.forEach((value, index) => {
+        const x = padding + (chartWidth / (values.length - 1)) * index;
+        const y = padding + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
+
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+
+    ctx.stroke();
+
+    // 绘制数据点
+    ctx.fillStyle = '#2196F3';
+    values.forEach((value, index) => {
+        const x = padding + (chartWidth / (values.length - 1)) * index;
+        const y = padding + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // 绘制坐标轴
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+
+    // Y 轴
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, height - padding);
+    ctx.stroke();
+
+    // X 轴
+    ctx.beginPath();
+    ctx.moveTo(padding, height - padding);
+    ctx.lineTo(width - padding, height - padding);
+    ctx.stroke();
+
+    // X 轴时间标签
+    ctx.fillStyle = '#666';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+
+    for (let i = 0; i < values.length; i += step) {
+        const x = padding + (chartWidth / (values.length - 1)) * i;
+        const timestamp = new Date(data.timestamps[i]);
+        const timeStr = timestamp.getHours().toString().padStart(2, '0') + ':' +
+                       timestamp.getMinutes().toString().padStart(2, '0');
+        ctx.fillText(timeStr, x, height - padding + 15);
+    }
+}
+
+// 关闭监控图表
+function closeMonitorChart() {
+    document.getElementById('monitor-chart-modal').style.display = 'none';
+}
+
+// 切换监控时间范围
+function changeMonitorDuration(duration) {
+    // 更新按钮状态
+    document.querySelectorAll('.duration-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    // 重新加载数据
+    if (state.currentMonitorServerId) {
+        loadAndDrawCharts(state.currentMonitorServerId, duration);
+    }
+}

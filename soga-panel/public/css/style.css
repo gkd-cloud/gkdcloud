@@ -907,3 +907,86 @@ footer {
         transform: rotate(360deg);
     }
 }
+
+/* ==================== 服务器监控 ==================== */
+
+.server-monitor {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    color: white;
+}
+
+.monitor-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.stat-label {
+    min-width: 50px;
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+.stat-bar {
+    flex: 1;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.stat-bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.5s ease, background-color 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 5px;
+}
+
+.stat-value {
+    min-width: 120px;
+    font-size: 0.85em;
+    font-weight: 500;
+    text-align: right;
+}
+
+.chart-container {
+    background: white;
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.chart-container canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+.duration-btn {
+    margin: 0 5px;
+    background: white;
+    color: #667eea;
+    border: 1px solid #667eea;
+}
+
+.duration-btn:hover {
+    background: #f0f0f0;
+}
+
+.duration-btn.active {
+    background: #667eea;
+    color: white;
+}
+
