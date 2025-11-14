@@ -104,59 +104,94 @@ class SogaInstaller {
   async installOnline(workDir, downloadUrl) {
     this.log(`下载 Soga: ${downloadUrl}`, 'info');
 
-    // 先测试网络连接
-    this.log('测试 GitHub 连接...', 'info');
-    const testResult = await this.ssh.execCommand('curl -I https://github.com --connect-timeout 10');
-    if (testResult.code !== 0) {
-      this.log('无法连接到 GitHub', 'error');
-      throw new Error('无法连接到 GitHub，请检查网络或使用离线模式');
+    // 准备下载源列表（主源 + 镜像源）
+    const downloadSources = [
+      { name: 'GitHub 官方源', url: downloadUrl },
+      { name: 'GitHub 镜像源 1', url: `https://ghproxy.com/${downloadUrl}` },
+      { name: 'GitHub 镜像源 2', url: `https://mirror.ghproxy.com/${downloadUrl}` },
+      { name: 'GitHub 镜像源 3', url: `https://gh.ddlc.top/${downloadUrl}` }
+    ];
+
+    let downloadSuccess = false;
+    let lastError = null;
+
+    // 尝试所有下载源
+    for (const source of downloadSources) {
+      try {
+        this.log(`尝试从 ${source.name} 下载...`, 'info');
+
+        // 测试连接
+        const hostname = new URL(source.url).hostname;
+        const testResult = await this.ssh.execCommand(`curl -I https://${hostname} --connect-timeout 5`);
+
+        if (testResult.code !== 0) {
+          this.log(`${source.name} 连接失败，尝试下一个源...`, 'warning');
+          continue;
+        }
+
+        this.log(`${source.name} 连接正常，开始下载...`, 'success');
+
+        // 下载并解压 tar.gz 包（参考官方脚本）
+        this.log('=== 步骤1: 下载并解压 ===', 'info');
+        const downloadCmd = `
+          cd /usr/local && \\
+          rm -f soga.tar.gz soga && \\
+          wget -N --no-check-certificate -O soga.tar.gz "${source.url}" 2>&1 && \\
+          echo "下载完成，开始解压..." && \\
+          tar zxvf soga.tar.gz 2>&1 && \\
+          echo "解压完成，检查文件结构..." && \\
+          ls -lh && \\
+          if [ -d soga ]; then \\
+            echo "检测到 soga 是目录，查找二进制文件..." && \\
+            find soga -type f -executable && \\
+            if [ -f soga/soga ]; then \\
+              echo "找到 soga/soga 二进制文件" && \\
+              chmod +x soga/soga && \\
+              mkdir -p ${workDir} && \\
+              cp soga/soga ${workDir}/soga && \\
+              chmod +x ${workDir}/soga; \\
+            else \\
+              echo "错误：未找到二进制文件" && exit 1; \\
+            fi; \\
+          else \\
+            echo "soga 是文件，直接处理" && \\
+            chmod +x soga && \\
+            mkdir -p ${workDir} && \\
+            mv soga ${workDir}/soga && \\
+            chmod +x ${workDir}/soga; \\
+          fi && \\
+          rm -rf soga.tar.gz soga && \\
+          echo "安装完成"
+        `;
+
+        const downloadResult = await this.ssh.execCommand(downloadCmd);
+        this.log(`退出码: ${downloadResult.code}`, downloadResult.code === 0 ? 'success' : 'error');
+        this.log(`输出:\n${downloadResult.stdout}`, 'info');
+        if (downloadResult.stderr) {
+          this.log(`stderr:\n${downloadResult.stderr}`, 'warn');
+        }
+
+        if (downloadResult.code === 0) {
+          this.log(`从 ${source.name} 下载成功！`, 'success');
+          downloadSuccess = true;
+          break; // 下载成功，跳出循环
+        } else {
+          const errorMsg = downloadResult.stderr || downloadResult.stdout || '未知错误';
+          this.log(`从 ${source.name} 下载失败: ${errorMsg}`, 'warning');
+          lastError = errorMsg;
+          continue; // 尝试下一个源
+        }
+      } catch (error) {
+        this.log(`从 ${source.name} 下载出错: ${error.message}`, 'warning');
+        lastError = error.message;
+        continue; // 尝试下一个源
+      }
     }
-    this.log('GitHub 连接正常', 'success');
 
-    // 下载并解压 tar.gz 包（参考官方脚本）
-    this.log('=== 步骤1: 下载并解压 ===', 'info');
-    const downloadCmd = `
-      cd /usr/local && \\
-      rm -f soga.tar.gz soga && \\
-      wget -N --no-check-certificate -O soga.tar.gz "${downloadUrl}" 2>&1 && \\
-      echo "下载完成，开始解压..." && \\
-      tar zxvf soga.tar.gz 2>&1 && \\
-      echo "解压完成，检查文件结构..." && \\
-      ls -lh && \\
-      if [ -d soga ]; then \\
-        echo "检测到 soga 是目录，查找二进制文件..." && \\
-        find soga -type f -executable && \\
-        if [ -f soga/soga ]; then \\
-          echo "找到 soga/soga 二进制文件" && \\
-          chmod +x soga/soga && \\
-          mkdir -p ${workDir} && \\
-          cp soga/soga ${workDir}/soga && \\
-          chmod +x ${workDir}/soga; \\
-        else \\
-          echo "错误：未找到二进制文件" && exit 1; \\
-        fi; \\
-      else \\
-        echo "soga 是文件，直接处理" && \\
-        chmod +x soga && \\
-        mkdir -p ${workDir} && \\
-        mv soga ${workDir}/soga && \\
-        chmod +x ${workDir}/soga; \\
-      fi && \\
-      rm -rf soga.tar.gz soga && \\
-      echo "安装完成"
-    `;
-
-    const downloadResult = await this.ssh.execCommand(downloadCmd);
-    this.log(`退出码: ${downloadResult.code}`, downloadResult.code === 0 ? 'success' : 'error');
-    this.log(`输出:\n${downloadResult.stdout}`, 'info');
-    if (downloadResult.stderr) {
-      this.log(`stderr:\n${downloadResult.stderr}`, 'warn');
-    }
-
-    if (downloadResult.code !== 0) {
-      const errorMsg = downloadResult.stderr || downloadResult.stdout || '未知错误';
-      this.log(`下载失败: ${errorMsg}`, 'error');
-      throw new Error(`下载失败: ${errorMsg}`);
+    // 所有源都失败
+    if (!downloadSuccess) {
+      this.log('所有下载源均失败', 'error');
+      throw new Error(`下载失败，已尝试所有镜像源。最后错误: ${lastError || '未知错误'}。请检查网络或使用离线安装模式。`);
     }
 
     // 验证文件是否存在且可执行
