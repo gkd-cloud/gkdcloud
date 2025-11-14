@@ -804,10 +804,15 @@ function renderServers() {
                 </div>
             </div>
             <div class="card-actions">
-                <button class="btn btn-info" onclick="testServer('${server.id}')">测试连接</button>
-                <button class="btn btn-secondary" onclick="getServerInfo('${server.id}')">系统信息</button>
-                <button class="btn btn-warning" onclick="diagnoseServer('${server.id}')">🔍 诊断 Soga</button>
-                <button class="btn btn-danger" onclick="deleteServer('${server.id}')">删除</button>
+                <div class="dropdown">
+                    <button class="dropdown-toggle">⚙️ 操作</button>
+                    <div class="dropdown-menu">
+                        <button onclick="testServer('${server.id}')">测试连接</button>
+                        <button onclick="getServerInfo('${server.id}')">系统信息</button>
+                        <button onclick="diagnoseServer('${server.id}')">🔍 诊断 Soga</button>
+                        <button class="danger" onclick="deleteServer('${server.id}')">删除</button>
+                    </div>
+                </div>
             </div>
         </div>
     `).join('');
