@@ -287,12 +287,24 @@ async function apiCall(endpoint, options = {}) {
         console.log(`[API] 请求: ${method} ${endpoint}`);
         addApiLog(`请求: ${method} ${endpoint}`, 'info');
 
+        // 调试：检查是否有 Authorization 头
+        const finalHeaders = {
+            ...authHeaders,
+            ...options.headers
+        };
+        const hasAuth = finalHeaders.Authorization || finalHeaders.authorization;
+        console.log(`[API] Authorization 头存在: ${!!hasAuth}`);
+        if (!hasAuth) {
+            console.error('[API] 警告：请求缺少 Authorization 头！');
+            addApiLog('警告：请求缺少 Authorization 头', 'error');
+        }
+
+        // 从 options 中移除 headers，避免被 ...options 覆盖
+        const { headers: _, ...restOptions } = options;
+
         response = await fetch(`${API_BASE}${endpoint}`, {
-            headers: {
-                ...authHeaders,
-                ...options.headers
-            },
-            ...options
+            ...restOptions,
+            headers: finalHeaders
         });
 
         console.log(`[API] 响应状态: ${response.status}`);
