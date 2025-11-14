@@ -240,8 +240,7 @@ const state = {
         routes: 'auto'
     },
     currentServer: null,
-    currentInstance: null,
-    currentDiagnose: null
+    currentInstance: null
 };
 
 // DOM 元素
@@ -274,7 +273,6 @@ const elements = {
     addRouteConfigModal: document.getElementById('add-route-config-modal'),
     addRouteConfigForm: document.getElementById('add-route-config-form'),
     logsModal: document.getElementById('logs-modal'),
-    diagnoseModal: document.getElementById('diagnose-modal'),
     // 版本管理
     currentVersionSpan: document.getElementById('current-version'),
     checkUpdateBtn: document.getElementById('check-update-btn'),
@@ -448,9 +446,9 @@ function initLogout() {
 
 async function handleLogout() {
     if (await showConfirm('确定要退出登录吗？')) {
-        localStorage.removeItem('authToken');
         addApiLog('用户已登出', 'info');
-        window.location.href = '/login.html';
+        // 使用 AuthManager 的 logout 方法，确保正确清理所有认证信息
+        AuthManager.logout();
     }
 }
 
@@ -849,7 +847,6 @@ function renderServers() {
                     <div class="dropdown-menu">
                         <button onclick="testServer('${server.id}')">测试连接</button>
                         <button onclick="getServerInfo('${server.id}')">系统信息</button>
-                        <button onclick="diagnoseServer('${server.id}')">🔍 诊断 Soga</button>
                         <button class="danger" onclick="deleteServer('${server.id}')">删除</button>
                     </div>
                 </div>
@@ -1724,69 +1721,6 @@ async function deleteRouteConfig(id) {
         addApiLog(`删除路由配置失败: ${error.message}`, 'error');
     }
 }
-
-// ==================== 诊断功能 ====================
-
-// 诊断服务器上的 Soga 实例
-async function diagnoseServer(serverId, instanceName = null) {
-    // 如果没有指定实例名，弹出输入框
-    if (!instanceName) {
-        instanceName = prompt('请输入要诊断的实例名称:', 'soga-test');
-        if (!instanceName) return;
-    }
-
-    const server = state.servers.find(s => s.id === serverId);
-    if (!server) {
-        showToast('服务器不存在', 'info');
-        return;
-    }
-
-    try {
-        // 显示加载中
-        elements.diagnoseModal.style.display = 'block';
-        document.getElementById('diagnose-server-name').textContent = server.name;
-        document.getElementById('diagnose-instance-name').textContent = instanceName;
-        document.getElementById('diagnose-output').textContent = '正在运行诊断脚本...\n请稍候...';
-
-        // 保存当前诊断上下文
-        state.currentDiagnose = { serverId, instanceName };
-
-        // 调用诊断 API
-        const result = await apiCall(`/servers/${serverId}/diagnose/${instanceName}`, {
-            method: 'POST'
-        });
-
-        if (result.success) {
-            document.getElementById('diagnose-output').textContent = result.output;
-
-            // 如果有错误输出，也显示
-            if (result.error) {
-                document.getElementById('diagnose-output').textContent += '\n\n=== 错误输出 ===\n' + result.error;
-            }
-
-            // 如果退出码不为0，添加警告
-            if (result.exitCode !== 0) {
-                document.getElementById('diagnose-output').textContent += '\n\n⚠️  诊断脚本退出码: ' + result.exitCode;
-            }
-        } else {
-            document.getElementById('diagnose-output').textContent = '诊断失败: ' + result.error;
-        }
-    } catch (error) {
-        document.getElementById('diagnose-output').textContent = '诊断失败: ' + error.message;
-    }
-}
-
-// 关闭诊断模态框
-document.getElementById('close-diagnose-btn')?.addEventListener('click', () => {
-    elements.diagnoseModal.style.display = 'none';
-});
-
-// 重新运行诊断
-document.getElementById('rerun-diagnose-btn')?.addEventListener('click', () => {
-    if (state.currentDiagnose) {
-        diagnoseServer(state.currentDiagnose.serverId, state.currentDiagnose.instanceName);
-    }
-});
 
 // ==================== 版本管理 ====================
 
