@@ -804,10 +804,15 @@ function renderServers() {
                 </div>
             </div>
             <div class="card-actions">
-                <button class="btn btn-info" onclick="testServer('${server.id}')">测试连接</button>
-                <button class="btn btn-secondary" onclick="getServerInfo('${server.id}')">系统信息</button>
-                <button class="btn btn-warning" onclick="diagnoseServer('${server.id}')">🔍 诊断 Soga</button>
-                <button class="btn btn-danger" onclick="deleteServer('${server.id}')">删除</button>
+                <div class="dropdown">
+                    <button class="dropdown-toggle">⚙️ 操作</button>
+                    <div class="dropdown-menu">
+                        <button onclick="testServer('${server.id}')">测试连接</button>
+                        <button onclick="getServerInfo('${server.id}')">系统信息</button>
+                        <button onclick="diagnoseServer('${server.id}')">🔍 诊断 Soga</button>
+                        <button class="danger" onclick="deleteServer('${server.id}')">删除</button>
+                    </div>
+                </div>
             </div>
         </div>
     `).join('');
@@ -992,6 +997,17 @@ async function handleCreateInstance(e) {
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData);
 
+    // 验证 systemd 服务名称
+    if (data.systemdServiceName && data.systemdServiceName.trim()) {
+        const serviceName = data.systemdServiceName.trim();
+        // systemd 服务名称规则：只能包含字母、数字、下划线、连字符，不能以数字或连字符开头
+        const validPattern = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
+        if (!validPattern.test(serviceName)) {
+            showToast('Systemd 服务名称格式不正确！只能包含字母、数字、下划线、连字符，且不能以数字或连字符开头', 'error');
+            return;
+        }
+    }
+
     // 构建配置对象
     const config = {
         panelType: data.panelType,
@@ -1087,6 +1103,7 @@ async function handleCreateInstance(e) {
             body: JSON.stringify({
                 serverId: data.serverId,
                 instanceName: data.instanceName,
+                systemdServiceName: data.systemdServiceName && data.systemdServiceName.trim() ? data.systemdServiceName.trim() : undefined,
                 config: config
             })
         });

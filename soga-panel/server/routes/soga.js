@@ -172,10 +172,21 @@ router.get('/packages/:id/content', async (req, res) => {
 // 安装 Soga 实例
 router.post('/install', async (req, res) => {
   try {
-    const { serverId, instanceName, config } = req.body;
+    const { serverId, instanceName, systemdServiceName, config } = req.body;
 
     if (!serverId || !instanceName || !config) {
       return res.status(400).json({ error: '缺少必要参数' });
+    }
+
+    // 确定 systemd 服务名称：如果提供了就使用，否则使用实例名称
+    let serviceName = systemdServiceName && systemdServiceName.trim() ? systemdServiceName.trim() : instanceName;
+
+    // 验证 systemd 服务名称格式
+    const validPattern = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
+    if (!validPattern.test(serviceName)) {
+      return res.status(400).json({
+        error: 'Systemd 服务名称格式不正确！只能包含字母、数字、下划线、连字符，且不能以数字或连字符开头'
+      });
     }
 
     const data = await readData();
@@ -186,16 +197,24 @@ router.post('/install', async (req, res) => {
     }
 
     // 检查实例名称是否已存在
-    const exists = data.instances.some(
+    const existsByName = data.instances.some(
       i => i.serverId === serverId && i.name === instanceName
     );
-    if (exists) {
+    if (existsByName) {
       return res.status(400).json({ error: '实例名称已存在' });
+    }
+
+    // 检查 systemd 服务名是否已存在
+    const existsByService = data.instances.some(
+      i => i.serverId === serverId && i.systemdServiceName === serviceName
+    );
+    if (existsByService) {
+      return res.status(400).json({ error: 'Systemd 服务名称已存在' });
     }
 
     // 安装 Soga
     const installer = new SogaInstaller(server);
-    const result = await installer.install(instanceName, config);
+    const result = await installer.install(serviceName, config);
 
     if (!result.success) {
       return res.status(500).json({
@@ -209,6 +228,7 @@ router.post('/install', async (req, res) => {
       id: Date.now().toString(),
       serverId,
       name: instanceName,
+      systemdServiceName: serviceName,
       config,
       status: 'running',
       createdAt: new Date().toISOString()
@@ -237,8 +257,12 @@ router.get('/:serverId/:instanceName/status', async (req, res) => {
       return res.status(404).json({ error: '服务器不存在' });
     }
 
+    // 查找实例获取 systemd 服务名
+    const instance = data.instances.find(i => i.serverId === serverId && i.name === instanceName);
+    const serviceName = instance && instance.systemdServiceName ? instance.systemdServiceName : instanceName;
+
     const ssh = new SSHService(server);
-    const status = await ssh.getServiceStatus(instanceName);
+    const status = await ssh.getServiceStatus(serviceName);
 
     res.json({ success: true, status });
   } catch (error) {
@@ -257,8 +281,12 @@ router.post('/:serverId/:instanceName/start', async (req, res) => {
       return res.status(404).json({ error: '服务器不存在' });
     }
 
+    // 查找实例获取 systemd 服务名
+    const instance = data.instances.find(i => i.serverId === serverId && i.name === instanceName);
+    const serviceName = instance && instance.systemdServiceName ? instance.systemdServiceName : instanceName;
+
     const ssh = new SSHService(server);
-    const result = await ssh.startService(instanceName);
+    const result = await ssh.startService(serviceName);
 
     res.json({ success: result.success, message: result.message });
   } catch (error) {
@@ -277,8 +305,12 @@ router.post('/:serverId/:instanceName/stop', async (req, res) => {
       return res.status(404).json({ error: '服务器不存在' });
     }
 
+    // 查找实例获取 systemd 服务名
+    const instance = data.instances.find(i => i.serverId === serverId && i.name === instanceName);
+    const serviceName = instance && instance.systemdServiceName ? instance.systemdServiceName : instanceName;
+
     const ssh = new SSHService(server);
-    const result = await ssh.stopService(instanceName);
+    const result = await ssh.stopService(serviceName);
 
     res.json({ success: result.success, message: result.message });
   } catch (error) {
@@ -297,8 +329,12 @@ router.post('/:serverId/:instanceName/restart', async (req, res) => {
       return res.status(404).json({ error: '服务器不存在' });
     }
 
+    // 查找实例获取 systemd 服务名
+    const instance = data.instances.find(i => i.serverId === serverId && i.name === instanceName);
+    const serviceName = instance && instance.systemdServiceName ? instance.systemdServiceName : instanceName;
+
     const ssh = new SSHService(server);
-    const result = await ssh.restartService(instanceName);
+    const result = await ssh.restartService(serviceName);
 
     res.json({ success: result.success, message: result.message });
   } catch (error) {
@@ -318,8 +354,12 @@ router.get('/:serverId/:instanceName/logs', async (req, res) => {
       return res.status(404).json({ error: '服务器不存在' });
     }
 
+    // 查找实例获取 systemd 服务名
+    const instance = data.instances.find(i => i.serverId === serverId && i.name === instanceName);
+    const serviceName = instance && instance.systemdServiceName ? instance.systemdServiceName : instanceName;
+
     const ssh = new SSHService(server);
-    const logs = await ssh.getServiceLogs(instanceName, lines);
+    const logs = await ssh.getServiceLogs(serviceName, lines);
 
     res.json({ success: true, logs });
   } catch (error) {
@@ -344,8 +384,12 @@ router.put('/:serverId/:instanceName/config', async (req, res) => {
       return res.status(404).json({ error: '服务器不存在' });
     }
 
+    // 查找实例获取 systemd 服务名
+    const instance = data.instances.find(i => i.serverId === serverId && i.name === instanceName);
+    const serviceName = instance && instance.systemdServiceName ? instance.systemdServiceName : instanceName;
+
     const installer = new SogaInstaller(server);
-    const result = await installer.updateConfig(instanceName, config);
+    const result = await installer.updateConfig(serviceName, config);
 
     if (result.success) {
       // 更新本地记录
@@ -405,10 +449,14 @@ router.delete('/:serverId/:instanceName', async (req, res) => {
     const data = await readData();
     const server = data.servers.find(s => s.id === serverId);
 
+    // 查找实例获取 systemd 服务名
+    const instance = data.instances.find(i => i.serverId === serverId && i.name === instanceName);
+    const serviceName = instance && instance.systemdServiceName ? instance.systemdServiceName : instanceName;
+
     // 如果服务器存在，尝试在服务器上卸载
     if (server) {
       const installer = new SogaInstaller(server);
-      const result = await installer.uninstall(instanceName);
+      const result = await installer.uninstall(serviceName);
 
       if (!result.success) {
         console.warn(`服务器端卸载失败: ${result.message}，但仍会删除本地记录`);
