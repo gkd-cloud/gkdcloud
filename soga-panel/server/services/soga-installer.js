@@ -530,13 +530,13 @@ WantedBy=multi-user.target
 
     // 架构名称映射（tar.gz 文件使用的名称）
     const archNameMap = {
-      'amd64': 'amd',
+      'amd64': 'amd64',  // 修复：应该是 amd64 不是 amd
       'arm64': 'arm64',
       'armv7': 'armv7',
       '386': '386'
     };
 
-    const archName = archNameMap[arch] || 'amd';
+    const archName = archNameMap[arch] || 'amd64';
 
     if (version === 'latest') {
       return `${baseUrl}/latest/download/soga-linux-${archName}.tar.gz`;
