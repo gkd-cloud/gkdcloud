@@ -7,57 +7,119 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
+    <!-- 侧边栏 -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
             <h1>🚀 Soga Panel</h1>
-            <p class="subtitle">SSR 对接面板 - 一键部署与管理</p>
-        </header>
-
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="servers">服务器管理</button>
-            <button class="tab-btn" data-tab="instances">实例管理</button>
-            <button class="tab-btn" data-tab="packages">离线包管理</button>
+            <p class="sidebar-subtitle">SSR 对接面板</p>
         </div>
 
-        <!-- 服务器管理 Tab -->
-        <div id="servers-tab" class="tab-content active">
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-page="servers">
+                <span class="nav-icon">🖥️</span>
+                <span class="nav-text">服务器管理</span>
+            </a>
+            <a href="#" class="nav-item" data-page="instances">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-text">实例管理</span>
+            </a>
+            <a href="#" class="nav-item" data-page="packages">
+                <span class="nav-icon">📦</span>
+                <span class="nav-text">离线包管理</span>
+            </a>
+            <a href="#" class="nav-item" data-page="routes">
+                <span class="nav-icon">🔀</span>
+                <span class="nav-text">路由配置</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <span class="user-icon">👤</span>
+                <span class="user-name">管理员</span>
+            </div>
+            <button class="btn btn-logout" id="logout-btn" title="退出登录">
+                <span>🚪</span> 退出登录
+            </button>
+        </div>
+    </aside>
+
+    <!-- 主内容区域 -->
+    <main class="main-content">
+        <!-- 顶部工具栏 -->
+        <div class="top-toolbar">
+            <div class="toolbar-left">
+                <h2 id="page-title">服务器管理</h2>
+            </div>
+            <div class="toolbar-right">
+                <!-- 视图切换按钮 -->
+                <div class="view-switcher">
+                    <button class="view-btn active" data-view="grid" title="方块视图">
+                        <span>⊞</span>
+                    </button>
+                    <button class="view-btn" data-view="list" title="列表视图">
+                        <span>☰</span>
+                    </button>
+                </div>
+                <!-- 方块尺寸调节（仅在方块视图时显示） -->
+                <div class="size-switcher" id="size-switcher">
+                    <button class="size-btn" data-size="small" title="小尺寸">S</button>
+                    <button class="size-btn active" data-size="medium" title="中尺寸">M</button>
+                    <button class="size-btn" data-size="large" title="大尺寸">L</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 服务器管理页面 -->
+        <div id="servers-page" class="page-content active">
             <div class="section-header">
-                <h2>服务器列表</h2>
                 <button class="btn btn-primary" id="add-server-btn">➕ 添加服务器</button>
             </div>
 
-            <div id="servers-list" class="cards-container">
+            <div id="servers-list" class="cards-container view-grid size-medium">
                 <!-- 服务器列表将在这里动态加载 -->
             </div>
         </div>
 
-        <!-- 实例管理 Tab -->
-        <div id="instances-tab" class="tab-content">
+        <!-- 实例管理页面 -->
+        <div id="instances-page" class="page-content">
             <div class="section-header">
-                <h2>Soga 实例列表</h2>
                 <button class="btn btn-primary" id="create-instance-btn">➕ 创建实例</button>
             </div>
 
-            <div id="instances-list" class="cards-container">
+            <div id="instances-list" class="cards-container view-grid size-medium">
                 <!-- 实例列表将在这里动态加载 -->
             </div>
         </div>
 
-        <!-- 离线包管理 Tab -->
-        <div id="packages-tab" class="tab-content">
+        <!-- 离线包管理页面 -->
+        <div id="packages-page" class="page-content">
             <div class="section-header">
-                <h2>离线安装包</h2>
                 <button class="btn btn-primary" id="upload-package-btn">➕ 上传离线包</button>
             </div>
             <div class="info-box">
                 <p>💡 提示：上传 Soga 离线包到服务器，创建实例时可直接选择，无需每次重新上传</p>
             </div>
 
-            <div id="packages-list" class="cards-container">
+            <div id="packages-list" class="cards-container view-grid size-medium">
                 <!-- 离线包列表将在这里动态加载 -->
             </div>
         </div>
-    </div>
+
+        <!-- 路由配置页面 -->
+        <div id="routes-page" class="page-content">
+            <div class="section-header">
+                <button class="btn btn-primary" id="add-route-config-btn">➕ 添加路由配置</button>
+            </div>
+            <div class="info-box">
+                <p>💡 提示：预先保存路由配置模板，创建实例时可快速选择，无需每次手动输入</p>
+            </div>
+
+            <div id="routes-list" class="cards-container view-grid size-medium">
+                <!-- 路由配置列表将在这里动态加载 -->
+            </div>
+        </div>
+    </main>
 
     <!-- 添加服务器模态框 -->
     <div id="add-server-modal" class="modal">
@@ -408,8 +470,62 @@
         </div>
     </div>
 
+    <!-- 添加路由配置模态框 -->
+    <div id="add-route-config-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>添加路由配置模板</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="add-route-config-form">
+                    <div class="form-group">
+                        <label>配置名称 *</label>
+                        <input type="text" name="name" required placeholder="例如: 默认路由配置">
+                        <small>用于识别此路由配置模板</small>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="isDefault">
+                            设为默认配置
+                        </label>
+                        <small>创建实例时自动选择此配置</small>
+                    </div>
+                    <div class="form-group">
+                        <label>路由规则（route.toml） *</label>
+                        <textarea name="routeConfig" rows="10" required placeholder="# 直接粘贴 TOML 格式的路由配置
+# 例如：
+# [[route.rules]]
+# type = &quot;field&quot;
+# outboundTag = &quot;direct&quot;
+# domain = [&quot;domain:cn&quot;]
+# ip = [&quot;geoip:cn&quot;]"></textarea>
+                        <small>TOML 格式的路由配置内容</small>
+                    </div>
+                    <div class="form-group">
+                        <label>黑名单配置（可选）</label>
+                        <textarea name="blockList" rows="6" placeholder="每行一个规则，支持域名、IP、CIDR
+例如：
+google.com
+192.168.1.0/24
+*.facebook.com"></textarea>
+                        <small>每行一个规则，支持域名、IP、CIDR</small>
+                    </div>
+                    <div class="form-group">
+                        <label>描述（可选）</label>
+                        <textarea name="description" rows="3" placeholder="例如: 包含中国大陆直连规则的默认配置"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-route-config-btn">取消</button>
+                        <button type="submit" class="btn btn-primary">保存配置</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- API 日志查看器（浮动按钮） -->
-    <div id="log-viewer-toggle" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">
+    <div id="log-viewer-toggle" style="position: fixed; bottom: 20px; right: 80px; z-index: 9999;">
         <button class="btn btn-info" onclick="toggleLogViewer(event)" style="border-radius: 50%; width: 50px; height: 50px; font-size: 20px;" title="查看 API 日志">📋</button>
     </div>
 
