@@ -434,6 +434,10 @@ body {
     padding: 8px 12px;
 }
 
+.card-actions .dropdown {
+    flex: 1;
+}
+
 /* ==================== 按钮样式 ==================== */
 
 .btn {
@@ -784,17 +788,19 @@ footer {
 }
 
 .dropdown-toggle {
+    width: 100%;
     padding: 8px 16px;
     background-color: var(--primary-color);
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
 }
 
