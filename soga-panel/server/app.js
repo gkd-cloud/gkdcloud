@@ -8,6 +8,8 @@ const { AuthService, authMiddleware } = require('./services/auth');
 const authRoutes = require('./routes/auth');
 const serverRoutes = require('./routes/server');
 const sogaRoutes = require('./routes/soga');
+const routeConfigsRoutes = require('./routes/route-configs');
+const versionRoutes = require('./routes/version');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,7 +39,7 @@ const initDataDir = async () => {
     // 初始化 servers.json
     await fs.writeFile(
       path.join(dataDir, 'servers.json'),
-      JSON.stringify({ servers: [], instances: [] }, null, 2)
+      JSON.stringify({ servers: [], instances: [], routeConfigs: [] }, null, 2)
     );
   }
   
@@ -51,6 +53,8 @@ app.use('/api/auth', authRoutes);
 // API 路由（需要认证）
 app.use('/api/servers', authMiddleware, serverRoutes);
 app.use('/api/soga', authMiddleware, sogaRoutes);
+app.use('/api/route-configs', authMiddleware, routeConfigsRoutes);
+app.use('/api/version', authMiddleware, versionRoutes);
 
 // 健康检查（不需要认证）
 app.get('/api/health', (req, res) => {

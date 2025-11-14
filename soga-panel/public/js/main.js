@@ -112,6 +112,10 @@ const elements = {
     addRouteConfigForm: document.getElementById('add-route-config-form'),
     logsModal: document.getElementById('logs-modal'),
     diagnoseModal: document.getElementById('diagnose-modal'),
+    // 版本管理
+    currentVersionSpan: document.getElementById('current-version'),
+    checkUpdateBtn: document.getElementById('check-update-btn'),
+    updateModal: document.getElementById('update-modal'),
     // 表单控件
     authTypeSelect: document.getElementById('auth-type'),
     passwordGroup: document.getElementById('password-group'),
@@ -127,6 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initAuthTypeSwitch();
     initInstallModeSwitch();
     initLogout();
+    initVersionCheck();
     loadServers();
     loadInstances();
     loadPackages();
@@ -423,7 +428,7 @@ async function loadSavedPackagesDropdown() {
 }
 
 // API 调用
-async function apiCall(endpoint, options = {}) {
+async function apiCall(endpoint, options = {}, showErrorAlert = true) {
     let response;
     const method = options.method || 'GET';
 
@@ -502,6 +507,7 @@ async function apiCall(endpoint, options = {}) {
             // 创建包含完整数据的错误对象
             const error = new Error(errorMsg);
             error.data = data; // 保存完整的响应数据（包括 logs）
+            error.status = response.status; // 保存状态码
             throw error;
         }
 
@@ -513,13 +519,15 @@ async function apiCall(endpoint, options = {}) {
         if (!response) {
             console.error('[API] 网络错误或请求失败:', error);
             addApiLog(`网络错误: ${error.message}`, 'error');
-            alert(`网络错误: ${error.message}`);
+            if (showErrorAlert) {
+                alert(`网络错误: ${error.message}`);
+            }
             throw error;
         }
 
         console.error('[API] 处理错误:', error);
-        // 只在非 401 错误时显示 alert
-        if (!error.message.includes('未授权')) {
+        // 只在需要显示错误且非 401 错误时显示 alert
+        if (showErrorAlert && !error.message.includes('未授权')) {
             alert(`错误: ${error.message}`);
         }
         throw error;
@@ -1191,10 +1199,9 @@ async function loadRouteConfigs() {
         renderRouteConfigs();
         updateRouteConfigSelects();
     } catch (error) {
-        // 如果是 404，说明还没有路由配置接口，使用本地存储
-        console.warn('路由配置API未实现，使用本地存储');
-        const savedConfigs = localStorage.getItem('routeConfigs');
-        state.routeConfigs = savedConfigs ? JSON.parse(savedConfigs) : [];
+        console.error('加载路由配置失败:', error);
+        // 显示空状态
+        state.routeConfigs = [];
         renderRouteConfigs();
         updateRouteConfigSelects();
     }
@@ -1331,35 +1338,24 @@ elements.addRouteConfigForm?.addEventListener('submit', async (e) => {
 
     const formData = new FormData(e.target);
     const configData = {
-        id: Date.now().toString(),
         name: formData.get('name'),
         routeConfig: formData.get('routeConfig'),
         blockList: formData.get('blockList') || '',
         description: formData.get('description') || '',
-        isDefault: formData.get('isDefault') === 'on',
-        createdAt: new Date().toISOString()
+        isDefault: formData.get('isDefault') === 'on'
     };
 
     try {
-        // 如果设为默认，取消其他配置的默认状态
-        if (configData.isDefault) {
-            state.routeConfigs.forEach(c => c.isDefault = false);
-        }
+        // 调用 API 保存
+        await apiCall('/route-configs', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(configData)
+        });
 
-        // 尝试调用 API
-        try {
-            await apiCall('/route-configs', {
-                method: 'POST',
-                body: JSON.stringify(configData)
-            });
-            addApiLog('路由配置保存成功', 'success');
-        } catch (error) {
-            // API 未实现，使用本地存储
-            console.warn('路由配置API未实现，保存到本地存储');
-            state.routeConfigs.push(configData);
-            localStorage.setItem('routeConfigs', JSON.stringify(state.routeConfigs));
-        }
-
+        addApiLog('路由配置保存成功', 'success');
         alert('路由配置保存成功');
         elements.addRouteConfigModal.style.display = 'none';
         elements.addRouteConfigForm.reset();
@@ -1373,18 +1369,15 @@ elements.addRouteConfigForm?.addEventListener('submit', async (e) => {
 // 设置默认路由配置
 async function setDefaultRouteConfig(id) {
     try {
-        // 取消所有配置的默认状态
-        state.routeConfigs.forEach(c => c.isDefault = false);
-        // 设置新的默认配置
-        const config = state.routeConfigs.find(c => c.id === id);
-        if (config) {
-            config.isDefault = true;
-        }
+        // 调用 API 设置默认
+        await apiCall(`/route-configs/${id}/set-default`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
 
-        // 保存到本地存储
-        localStorage.setItem('routeConfigs', JSON.stringify(state.routeConfigs));
-
-        addApiLog(`已将 "${config.name}" 设为默认配置`, 'success');
+        addApiLog('默认配置已更新', 'success');
         alert('默认配置已更新');
         loadRouteConfigs();
     } catch (error) {
@@ -1426,18 +1419,10 @@ async function deleteRouteConfig(id) {
     }
 
     try {
-        try {
-            await apiCall(`/route-configs/${id}`, {
-                method: 'DELETE'
-            });
-        } catch (error) {
-            // API 未实现，从本地存储删除
-            const index = state.routeConfigs.findIndex(c => c.id === id);
-            if (index !== -1) {
-                state.routeConfigs.splice(index, 1);
-                localStorage.setItem('routeConfigs', JSON.stringify(state.routeConfigs));
-            }
-        }
+        // 调用 API 删除
+        await apiCall(`/route-configs/${id}`, {
+            method: 'DELETE'
+        });
 
         alert('路由配置删除成功');
         loadRouteConfigs();
@@ -1509,3 +1494,205 @@ document.getElementById('rerun-diagnose-btn')?.addEventListener('click', () => {
         diagnoseServer(state.currentDiagnose.serverId, state.currentDiagnose.instanceName);
     }
 });
+
+// ==================== 版本管理 ====================
+
+// 初始化版本检查
+function initVersionCheck() {
+    // 加载当前版本
+    loadCurrentVersion();
+
+    // 检查更新按钮事件
+    elements.checkUpdateBtn?.addEventListener('click', checkForUpdates);
+
+    // 开始更新按钮事件
+    document.getElementById('start-update-btn')?.addEventListener('click', startUpdate);
+}
+
+// 加载当前版本
+async function loadCurrentVersion() {
+    try {
+        const response = await apiCall('/version/current');
+        if (response.success && response.version) {
+            elements.currentVersionSpan.textContent = response.version.version;
+        }
+    } catch (error) {
+        console.error('加载版本信息失败:', error);
+    }
+}
+
+// 检查更新
+async function checkForUpdates() {
+    try {
+        const btn = elements.checkUpdateBtn;
+        btn.disabled = true;
+        btn.innerHTML = '<span style="animation: spin 1s linear infinite; display: inline-block;">🔄</span>';
+
+        const response = await apiCall('/version/check-update');
+
+        if (response.success) {
+            if (response.hasUpdate) {
+                showUpdateAvailable(response);
+            } else {
+                showNoUpdate();
+            }
+        } else {
+            throw new Error(response.error || '检查更新失败');
+        }
+    } catch (error) {
+        alert('检查更新失败: ' + error.message);
+    } finally {
+        elements.checkUpdateBtn.disabled = false;
+        elements.checkUpdateBtn.innerHTML = '<span>🔄</span>';
+    }
+}
+
+// 显示有更新可用
+function showUpdateAvailable(updateInfo) {
+    // 显示更新模态框
+    elements.updateModal.style.display = 'flex';
+
+    // 隐藏所有内容区域
+    document.getElementById('update-check-content').style.display = 'block';
+    document.getElementById('update-progress-content').style.display = 'none';
+    document.getElementById('update-success-content').style.display = 'none';
+    document.getElementById('update-no-update-content').style.display = 'none';
+
+    // 填充版本信息
+    document.getElementById('update-current-version').textContent = updateInfo.current;
+    document.getElementById('update-latest-version').textContent = updateInfo.latest;
+
+    // 填充更新描述
+    const descDiv = document.getElementById('update-description');
+    if (updateInfo.updateInfo && updateInfo.updateInfo.description) {
+        // 将 markdown 转换为 HTML（简单处理）
+        const description = updateInfo.updateInfo.description
+            .replace(/^### (.*$)/gim, '<h4>$1</h4>')
+            .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+            .replace(/^# (.*$)/gim, '<h2>$1</h2>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n/g, '<br>');
+        descDiv.innerHTML = '<h4>更新内容：</h4>' + description;
+    } else {
+        descDiv.innerHTML = '<p>新版本已发布，建议更新。</p>';
+    }
+}
+
+// 显示没有更新
+function showNoUpdate() {
+    elements.updateModal.style.display = 'flex';
+
+    document.getElementById('update-check-content').style.display = 'none';
+    document.getElementById('update-progress-content').style.display = 'none';
+    document.getElementById('update-success-content').style.display = 'none';
+    document.getElementById('update-no-update-content').style.display = 'block';
+}
+
+// 开始更新
+async function startUpdate() {
+    try {
+        // 切换到进度显示
+        document.getElementById('update-check-content').style.display = 'none';
+        document.getElementById('update-progress-content').style.display = 'block';
+
+        // 清空日志
+        document.getElementById('update-logs-content').textContent = '';
+        updateProgress(10, '准备更新...');
+
+        // 调用更新 API
+        const response = await apiCall('/version/update', { method: 'POST' });
+
+        if (response.success) {
+            updateProgress(30, '更新已启动...\n');
+
+            // 模拟进度（因为更新在后台执行）
+            let progress = 30;
+            const progressInterval = setInterval(() => {
+                progress += 10;
+                if (progress >= 90) {
+                    clearInterval(progressInterval);
+                    updateProgress(90, '正在应用更新...\n');
+
+                    // 等待30秒后尝试获取更新日志
+                    setTimeout(() => {
+                        checkUpdateStatus();
+                    }, 5000);
+                } else {
+                    updateProgress(progress, '');
+                }
+            }, 2000);
+        } else {
+            throw new Error(response.error || '启动更新失败');
+        }
+    } catch (error) {
+        document.getElementById('update-logs-content').textContent += '\n错误: ' + error.message;
+        updateProgress(0, '更新失败');
+    }
+}
+
+// 检查更新状态
+async function checkUpdateStatus() {
+    try {
+        const response = await apiCall('/version/update-log');
+
+        if (response.success && response.log) {
+            document.getElementById('update-logs-content').textContent += '\n' + response.log;
+            updateProgress(100, '更新完成！');
+
+            // 等待2秒后显示成功页面
+            setTimeout(() => {
+                showUpdateSuccess();
+            }, 2000);
+        }
+    } catch (error) {
+        // 如果获取日志失败，可能服务已重启，直接显示成功
+        updateProgress(100, '更新完成！');
+        setTimeout(() => {
+            showUpdateSuccess();
+        }, 2000);
+    }
+}
+
+// 更新进度
+function updateProgress(percent, message) {
+    const progressBar = document.getElementById('update-progress-bar');
+    const progressText = document.getElementById('update-progress-text');
+    const logsContent = document.getElementById('update-logs-content');
+
+    progressBar.style.width = percent + '%';
+    progressText.textContent = percent + '%';
+
+    if (message) {
+        logsContent.textContent += message;
+        // 自动滚动到底部
+        logsContent.parentElement.scrollTop = logsContent.parentElement.scrollHeight;
+    }
+}
+
+// 显示更新成功
+function showUpdateSuccess() {
+    document.getElementById('update-check-content').style.display = 'none';
+    document.getElementById('update-progress-content').style.display = 'none';
+    document.getElementById('update-success-content').style.display = 'block';
+
+    // 倒计时刷新
+    let countdown = 5;
+    const countdownSpan = document.getElementById('countdown');
+    const countdownInterval = setInterval(() => {
+        countdown--;
+        countdownSpan.textContent = countdown;
+        if (countdown <= 0) {
+            clearInterval(countdownInterval);
+            location.reload();
+        }
+    }, 1000);
+}
+
+// 关闭更新模态框
+function closeUpdateModal() {
+    elements.updateModal.style.display = 'none';
+}
+
+// 添加关闭按钮事件
+elements.updateModal?.querySelector('.close')?.addEventListener('click', closeUpdateModal);
