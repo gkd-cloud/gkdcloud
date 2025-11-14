@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { SSHConnection } = require('../services/ssh');
+const SSHService = require('../services/ssh');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -23,45 +23,45 @@ router.get('/:serverId/stats', async (req, res) => {
             return res.status(404).json({ success: false, error: '服务器不存在' });
         }
 
-        const ssh = new SSHConnection(server);
+        const ssh = new SSHService(server);
         await ssh.connect();
 
         try {
             // 获取 CPU 使用率
             const cpuCommand = `top -bn1 | grep "Cpu(s)" | sed "s/.*, *\\([0-9.]*\\)%* id.*/\\1/" | awk '{print 100 - $1}'`;
-            const cpuResult = await ssh.exec(cpuCommand);
-            const cpuUsage = parseFloat(cpuResult.trim()) || 0;
+            const cpuResult = await ssh.execCommand(cpuCommand);
+            const cpuUsage = parseFloat(cpuResult.stdout.trim()) || 0;
 
             // 获取内存使用率
             const memCommand = `free | grep Mem | awk '{printf "%.2f\\n%.2f\\n%.2f", $3/$2 * 100.0, $3/1024/1024, $2/1024/1024}'`;
-            const memResult = await ssh.exec(memCommand);
-            const memLines = memResult.trim().split('\n');
+            const memResult = await ssh.execCommand(memCommand);
+            const memLines = memResult.stdout.trim().split('\n');
             const memUsage = parseFloat(memLines[0]) || 0;
             const memUsed = parseFloat(memLines[1]) || 0;
             const memTotal = parseFloat(memLines[2]) || 0;
 
             // 获取磁盘使用率
             const diskCommand = `df -h / | tail -1 | awk '{print $5, $3, $2}' | sed 's/%//'`;
-            const diskResult = await ssh.exec(diskCommand);
-            const diskParts = diskResult.trim().split(' ');
+            const diskResult = await ssh.execCommand(diskCommand);
+            const diskParts = diskResult.stdout.trim().split(' ');
             const diskUsage = parseFloat(diskParts[0]) || 0;
             const diskUsed = diskParts[1] || '0';
             const diskTotal = diskParts[2] || '0';
 
             // 获取系统负载
             const loadCommand = `uptime | awk -F'load average:' '{print $2}' | awk '{print $1, $2, $3}' | sed 's/,//g'`;
-            const loadResult = await ssh.exec(loadCommand);
-            const loadParts = loadResult.trim().split(' ');
+            const loadResult = await ssh.execCommand(loadCommand);
+            const loadParts = loadResult.stdout.trim().split(' ');
             const load1 = parseFloat(loadParts[0]) || 0;
             const load5 = parseFloat(loadParts[1]) || 0;
             const load15 = parseFloat(loadParts[2]) || 0;
 
             // 获取运行时间
             const uptimeCommand = `uptime -p | sed 's/up //'`;
-            const uptimeResult = await ssh.exec(uptimeCommand);
-            const uptime = uptimeResult.trim();
+            const uptimeResult = await ssh.execCommand(uptimeCommand);
+            const uptime = uptimeResult.stdout.trim();
 
-            await ssh.close();
+            ssh.dispose();
 
             res.json({
                 success: true,
@@ -88,7 +88,7 @@ router.get('/:serverId/stats', async (req, res) => {
                 }
             });
         } catch (error) {
-            await ssh.close();
+            ssh.dispose();
             throw error;
         }
     } catch (error) {
