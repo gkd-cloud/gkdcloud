@@ -1189,16 +1189,14 @@ function formatSize(bytes) {
 // 加载路由配置列表
 async function loadRouteConfigs() {
     try {
-        // 第三个参数 false 表示不显示错误弹窗，因为这个 API 可能还未实现
-        const data = await apiCall('/route-configs', {}, false);
+        const data = await apiCall('/route-configs');
         state.routeConfigs = data.configs || [];
         renderRouteConfigs();
         updateRouteConfigSelects();
     } catch (error) {
-        // 如果是 404 或其他错误，使用本地存储
-        console.warn('路由配置API未实现，使用本地存储');
-        const savedConfigs = localStorage.getItem('routeConfigs');
-        state.routeConfigs = savedConfigs ? JSON.parse(savedConfigs) : [];
+        console.error('加载路由配置失败:', error);
+        // 显示空状态
+        state.routeConfigs = [];
         renderRouteConfigs();
         updateRouteConfigSelects();
     }
@@ -1335,35 +1333,24 @@ elements.addRouteConfigForm?.addEventListener('submit', async (e) => {
 
     const formData = new FormData(e.target);
     const configData = {
-        id: Date.now().toString(),
         name: formData.get('name'),
         routeConfig: formData.get('routeConfig'),
         blockList: formData.get('blockList') || '',
         description: formData.get('description') || '',
-        isDefault: formData.get('isDefault') === 'on',
-        createdAt: new Date().toISOString()
+        isDefault: formData.get('isDefault') === 'on'
     };
 
     try {
-        // 如果设为默认，取消其他配置的默认状态
-        if (configData.isDefault) {
-            state.routeConfigs.forEach(c => c.isDefault = false);
-        }
+        // 调用 API 保存
+        await apiCall('/route-configs', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(configData)
+        });
 
-        // 尝试调用 API
-        try {
-            await apiCall('/route-configs', {
-                method: 'POST',
-                body: JSON.stringify(configData)
-            });
-            addApiLog('路由配置保存成功', 'success');
-        } catch (error) {
-            // API 未实现，使用本地存储
-            console.warn('路由配置API未实现，保存到本地存储');
-            state.routeConfigs.push(configData);
-            localStorage.setItem('routeConfigs', JSON.stringify(state.routeConfigs));
-        }
-
+        addApiLog('路由配置保存成功', 'success');
         alert('路由配置保存成功');
         elements.addRouteConfigModal.style.display = 'none';
         elements.addRouteConfigForm.reset();
@@ -1377,18 +1364,15 @@ elements.addRouteConfigForm?.addEventListener('submit', async (e) => {
 // 设置默认路由配置
 async function setDefaultRouteConfig(id) {
     try {
-        // 取消所有配置的默认状态
-        state.routeConfigs.forEach(c => c.isDefault = false);
-        // 设置新的默认配置
-        const config = state.routeConfigs.find(c => c.id === id);
-        if (config) {
-            config.isDefault = true;
-        }
+        // 调用 API 设置默认
+        await apiCall(`/route-configs/${id}/set-default`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
 
-        // 保存到本地存储
-        localStorage.setItem('routeConfigs', JSON.stringify(state.routeConfigs));
-
-        addApiLog(`已将 "${config.name}" 设为默认配置`, 'success');
+        addApiLog('默认配置已更新', 'success');
         alert('默认配置已更新');
         loadRouteConfigs();
     } catch (error) {
@@ -1430,18 +1414,10 @@ async function deleteRouteConfig(id) {
     }
 
     try {
-        try {
-            await apiCall(`/route-configs/${id}`, {
-                method: 'DELETE'
-            });
-        } catch (error) {
-            // API 未实现，从本地存储删除
-            const index = state.routeConfigs.findIndex(c => c.id === id);
-            if (index !== -1) {
-                state.routeConfigs.splice(index, 1);
-                localStorage.setItem('routeConfigs', JSON.stringify(state.routeConfigs));
-            }
-        }
+        // 调用 API 删除
+        await apiCall(`/route-configs/${id}`, {
+            method: 'DELETE'
+        });
 
         alert('路由配置删除成功');
         loadRouteConfigs();
