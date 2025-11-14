@@ -142,6 +142,13 @@ enable_proxy_protocol=${enableProxyProtocol}
       conf += `block_rule_list=${blockRuleList}\n`;
     }
 
+    // 添加路由配置文件路径（如果提供了路由配置）
+    if (config.routeConfig) {
+      // 使用实例目录下的 route.toml
+      conf += `\n# 路由配置文件路径\n`;
+      conf += `route_config_path=route.toml\n`;
+    }
+
     return conf;
   }
 
