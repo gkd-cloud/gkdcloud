@@ -188,6 +188,13 @@
                 <span class="close">&times;</span>
             </div>
             <div class="modal-body">
+                <div style="margin-bottom: 15px; padding: 10px; background: #f0f7ff; border-radius: 6px; display: flex; gap: 10px; align-items: center;">
+                    <label style="margin: 0;">从模板加载：</label>
+                    <select id="load-template-select" style="flex: 1;">
+                        <option value="">手动配置</option>
+                    </select>
+                    <button type="button" class="btn btn-sm btn-success" id="save-as-template-btn">💾 保存为模板并创建</button>
+                </div>
                 <form id="create-instance-form">
                     <div class="form-section">
                         <h4>基础配置</h4>
@@ -631,6 +638,148 @@ google.com
                         <button type="button" class="btn btn-secondary" onclick="closeUpdateModal()">关闭</button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模板管理模态框 -->
+    <div id="template-manager-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>📋 节点对接模板管理</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-primary" id="add-template-btn">➕ 新建模板</button>
+                </div>
+                <div id="templates-list">
+                    <!-- 模板列表将在这里动态加载 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加/编辑模板模态框 -->
+    <div id="edit-template-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3 id="template-modal-title">新建模板</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="template-form">
+                    <input type="hidden" id="template-id" name="templateId">
+
+                    <div class="form-group">
+                        <label>模板名称 *</label>
+                        <input type="text" id="template-name" name="name" required placeholder="例如：主节点配置">
+                    </div>
+
+                    <div class="form-group">
+                        <label>模板描述</label>
+                        <textarea id="template-description" name="description" rows="2" placeholder="描述此模板的用途"></textarea>
+                    </div>
+
+                    <h4 style="margin-top: 20px; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px;">基础配置</h4>
+
+                    <div class="form-group">
+                        <label>面板类型 *</label>
+                        <select id="template-panel-type" name="panelType" required>
+                            <option value="sspanel-uim">SSPanel-Uim</option>
+                            <option value="v2board">V2Board</option>
+                            <option value="sspanel">SSPanel</option>
+                            <option value="proxypanel">ProxyPanel</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>节点类型 *</label>
+                        <select id="template-server-type" name="serverType" required>
+                            <option value="v2ray">V2Ray</option>
+                            <option value="trojan">Trojan</option>
+                            <option value="shadowsocks">Shadowsocks</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>授权码 (Mukey/Soga Key)</label>
+                        <input type="text" id="template-soga-key" name="sogaKey" placeholder="可选">
+                    </div>
+
+                    <div class="form-group">
+                        <label>对接方式 *</label>
+                        <select id="template-api" name="api" required>
+                            <option value="webapi">WebAPI</option>
+                            <option value="db">数据库直连</option>
+                        </select>
+                    </div>
+
+                    <div id="template-webapi-config">
+                        <h4 style="margin-top: 20px; margin-bottom: 15px;">WebAPI 对接配置</h4>
+
+                        <div class="form-group">
+                            <label>面板地址 (WebAPI URL) *</label>
+                            <input type="url" id="template-panel-url" name="panelUrl" placeholder="https://panel.example.com">
+                        </div>
+
+                        <div class="form-group">
+                            <label>面板密钥 (WebAPI Key) *</label>
+                            <input type="text" id="template-panel-key" name="panelKey" placeholder="your-panel-key">
+                        </div>
+                    </div>
+
+                    <div id="template-db-config" style="display: none;">
+                        <h4 style="margin-top: 20px; margin-bottom: 15px;">数据库配置</h4>
+
+                        <div class="form-group">
+                            <label>数据库地址</label>
+                            <input type="text" id="template-db-host" name="dbHost" placeholder="localhost">
+                        </div>
+
+                        <div class="form-group">
+                            <label>数据库端口</label>
+                            <input type="number" id="template-db-port" name="dbPort" placeholder="3306">
+                        </div>
+
+                        <div class="form-group">
+                            <label>数据库名称</label>
+                            <input type="text" id="template-db-name" name="dbName" placeholder="sspanel">
+                        </div>
+
+                        <div class="form-group">
+                            <label>数据库用户</label>
+                            <input type="text" id="template-db-user" name="dbUser" placeholder="root">
+                        </div>
+
+                        <div class="form-group">
+                            <label>数据库密码</label>
+                            <input type="password" id="template-db-password" name="dbPassword">
+                        </div>
+                    </div>
+
+                    <h4 style="margin-top: 20px; margin-bottom: 15px;">其他配置</h4>
+
+                    <div class="form-group">
+                        <label>日志级别</label>
+                        <select id="template-log-level" name="logLevel">
+                            <option value="debug">Debug</option>
+                            <option value="info" selected>Info</option>
+                            <option value="warning">Warning</option>
+                            <option value="error">Error</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>检查间隔 (秒)</label>
+                        <input type="number" id="template-check-interval" name="checkInterval" value="60">
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeEditTemplateModal()">取消</button>
+                        <button type="submit" class="btn btn-primary">保存模板</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
