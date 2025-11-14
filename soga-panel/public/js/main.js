@@ -423,7 +423,7 @@ async function loadSavedPackagesDropdown() {
 }
 
 // API 调用
-async function apiCall(endpoint, options = {}) {
+async function apiCall(endpoint, options = {}, showErrorAlert = true) {
     let response;
     const method = options.method || 'GET';
 
@@ -502,6 +502,7 @@ async function apiCall(endpoint, options = {}) {
             // 创建包含完整数据的错误对象
             const error = new Error(errorMsg);
             error.data = data; // 保存完整的响应数据（包括 logs）
+            error.status = response.status; // 保存状态码
             throw error;
         }
 
@@ -513,13 +514,15 @@ async function apiCall(endpoint, options = {}) {
         if (!response) {
             console.error('[API] 网络错误或请求失败:', error);
             addApiLog(`网络错误: ${error.message}`, 'error');
-            alert(`网络错误: ${error.message}`);
+            if (showErrorAlert) {
+                alert(`网络错误: ${error.message}`);
+            }
             throw error;
         }
 
         console.error('[API] 处理错误:', error);
-        // 只在非 401 错误时显示 alert
-        if (!error.message.includes('未授权')) {
+        // 只在需要显示错误且非 401 错误时显示 alert
+        if (showErrorAlert && !error.message.includes('未授权')) {
             alert(`错误: ${error.message}`);
         }
         throw error;
@@ -1186,12 +1189,13 @@ function formatSize(bytes) {
 // 加载路由配置列表
 async function loadRouteConfigs() {
     try {
-        const data = await apiCall('/route-configs');
+        // 第三个参数 false 表示不显示错误弹窗，因为这个 API 可能还未实现
+        const data = await apiCall('/route-configs', {}, false);
         state.routeConfigs = data.configs || [];
         renderRouteConfigs();
         updateRouteConfigSelects();
     } catch (error) {
-        // 如果是 404，说明还没有路由配置接口，使用本地存储
+        // 如果是 404 或其他错误，使用本地存储
         console.warn('路由配置API未实现，使用本地存储');
         const savedConfigs = localStorage.getItem('routeConfigs');
         state.routeConfigs = savedConfigs ? JSON.parse(savedConfigs) : [];
