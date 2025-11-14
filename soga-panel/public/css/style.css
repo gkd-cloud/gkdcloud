@@ -311,6 +311,11 @@ body {
     grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
 }
 
+/* 方块视图 - 自适应 */
+.cards-container.view-grid.size-auto {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
 /* 列表视图 */
 .cards-container.view-list {
     display: flex;
