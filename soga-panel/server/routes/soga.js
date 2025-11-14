@@ -296,25 +296,33 @@ router.delete('/:serverId/:instanceName', async (req, res) => {
     const data = await readData();
     const server = data.servers.find(s => s.id === serverId);
 
-    if (!server) {
-      return res.status(404).json({ error: '服务器不存在' });
-    }
+    // 如果服务器存在，尝试在服务器上卸载
+    if (server) {
+      const installer = new SogaInstaller(server);
+      const result = await installer.uninstall(instanceName);
 
-    const installer = new SogaInstaller(server);
-    const result = await installer.uninstall(instanceName);
-
-    if (result.success) {
-      // 从记录中删除
-      const index = data.instances.findIndex(
-        i => i.serverId === serverId && i.name === instanceName
-      );
-      if (index !== -1) {
-        data.instances.splice(index, 1);
-        await writeData(data);
+      if (!result.success) {
+        console.warn(`服务器端卸载失败: ${result.message}，但仍会删除本地记录`);
       }
+    } else {
+      console.warn(`服务器不存在 (ID: ${serverId})，仅删除本地实例记录`);
     }
 
-    res.json({ success: result.success, message: result.message });
+    // 无论服务器是否存在，都删除本地记录
+    const index = data.instances.findIndex(
+      i => i.serverId === serverId && i.name === instanceName
+    );
+
+    if (index !== -1) {
+      data.instances.splice(index, 1);
+      await writeData(data);
+      res.json({
+        success: true,
+        message: server ? '实例删除成功' : '实例记录已删除（服务器不存在）'
+      });
+    } else {
+      res.status(404).json({ error: '实例不存在' });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

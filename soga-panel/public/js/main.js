@@ -597,6 +597,7 @@ async function handleCreateInstance(e) {
     // 构建配置对象
     const config = {
         panelType: data.panelType,
+        serverType: data.serverType,  // 后端类型（v2ray, trojan, ss等）
         panelUrl: data.panelUrl,
         panelKey: data.panelKey,
         nodeId: data.nodeId,
