@@ -211,8 +211,13 @@
                         </div>
                         <div class="form-group">
                             <label>实例名称 *</label>
-                            <input type="text" name="instanceName" required placeholder="例如: node-hk-01">
-                            <small>用于 systemd 服务命名，建议使用字母、数字、连字符</small>
+                            <input type="text" name="instanceName" required placeholder="例如: 香港节点-01">
+                            <small>实例的显示名称，用于标识和管理</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Systemd 服务名称</label>
+                            <input type="text" name="systemdServiceName" id="systemd-service-name" placeholder="留空则使用实例名称">
+                            <small>systemd 服务名称，只能包含字母、数字、下划线、连字符，不能以数字开头</small>
                         </div>
                         <div class="form-group">
                             <label>安装模式 *</label>
