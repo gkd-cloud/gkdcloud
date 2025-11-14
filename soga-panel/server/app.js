@@ -14,6 +14,7 @@ const routeConfigsRoutes = require('./routes/route-configs');
 const versionRoutes = require('./routes/version');
 const monitorRoutes = require('./routes/monitor');
 const settingsRoutes = require('./routes/settings');
+const templatesRoutes = require('./routes/templates');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,7 +44,7 @@ const initDataDir = async () => {
     // 初始化 servers.json
     await fs.writeFile(
       path.join(dataDir, 'servers.json'),
-      JSON.stringify({ servers: [], instances: [], routeConfigs: [] }, null, 2)
+      JSON.stringify({ servers: [], instances: [], routeConfigs: [], templates: [] }, null, 2)
     );
   }
   
@@ -61,6 +62,7 @@ app.use('/api/route-configs', authMiddleware, routeConfigsRoutes);
 app.use('/api/version', authMiddleware, versionRoutes);
 app.use('/api/monitor', authMiddleware, monitorRoutes);
 app.use('/api/settings', authMiddleware, settingsRoutes);
+app.use('/api/templates', authMiddleware, templatesRoutes);
 
 // 健康检查（不需要认证）
 app.get('/api/health', (req, res) => {

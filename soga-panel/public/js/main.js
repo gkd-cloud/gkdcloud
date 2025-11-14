@@ -132,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initInstallModeSwitch();
     initLogout();
     initVersionCheck();
+    initTemplateManagement(); // 添加模板管理初始化
     loadServers();
     loadInstances();
     loadPackages();
@@ -1951,5 +1952,369 @@ function changeMonitorDuration(duration) {
     // 重新加载数据
     if (state.currentMonitorServerId) {
         loadAndDrawCharts(state.currentMonitorServerId, duration);
+    }
+}
+
+// ==================== 模板管理 ====================
+
+// 添加模板列表到状态
+state.templates = [];
+
+// 加载模板列表
+async function loadTemplates() {
+    try {
+        const response = await apiCall('/templates', {}, false);
+        if (response.success) {
+            state.templates = response.templates || [];
+            renderTemplates();
+            updateTemplateSelector();
+        }
+    } catch (error) {
+        console.error('加载模板列表失败:', error);
+        state.templates = [];
+    }
+}
+
+// 渲染模板列表
+function renderTemplates() {
+    const templatesList = document.getElementById('templates-list');
+    if (!templatesList) return;
+
+    if (state.templates.length === 0) {
+        templatesList.innerHTML = `
+            <div class="empty-state">
+                <h3>📋 还没有保存的模板</h3>
+                <p>点击"新建模板"按钮来创建配置模板</p>
+                <p style="margin-top: 10px; color: #666; font-size: 0.9em;">
+                    模板可以保存常用的面板类型、mukey、对接域名等配置信息，<br>
+                    方便快速创建新实例
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    templatesList.innerHTML = state.templates.map(template => `
+        <div class="card" style="margin-bottom: 15px;">
+            <div class="card-header">
+                <div class="card-title">${template.name}</div>
+                <div class="card-actions">
+                    <button class="btn btn-sm btn-primary" onclick="loadTemplateToForm('${template.id}', true)">📝 使用模板</button>
+                    <button class="btn btn-sm btn-secondary" onclick="editTemplate('${template.id}')">✏️ 编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteTemplate('${template.id}')">🗑️ 删除</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="card-info">
+                    ${template.description ? `
+                    <div class="card-info-item">
+                        <span class="card-info-label">描述:</span>
+                        <span class="card-info-value">${template.description}</span>
+                    </div>
+                    ` : ''}
+                    <div class="card-info-item">
+                        <span class="card-info-label">面板类型:</span>
+                        <span class="card-info-value">${template.config.panelType}</span>
+                    </div>
+                    <div class="card-info-item">
+                        <span class="card-info-label">后端类型:</span>
+                        <span class="card-info-value">${template.config.serverType || '未设置'}</span>
+                    </div>
+                    <div class="card-info-item">
+                        <span class="card-info-label">对接方式:</span>
+                        <span class="card-info-value">${template.config.api}</span>
+                    </div>
+                    ${template.config.api === 'webapi' && template.config.panelUrl ? `
+                    <div class="card-info-item">
+                        <span class="card-info-label">面板 URL:</span>
+                        <span class="card-info-value">${template.config.panelUrl}</span>
+                    </div>
+                    ` : ''}
+                    <div class="card-info-item">
+                        <span class="card-info-label">创建时间:</span>
+                        <span class="card-info-value">${formatDate(template.createdAt)}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 更新创建实例表单中的模板选择器
+function updateTemplateSelector() {
+    const select = document.getElementById('load-template-select');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">手动配置</option>' +
+        state.templates.map(template =>
+            `<option value="${template.id}">${template.name}</option>`
+        ).join('');
+}
+
+// 从模板加载配置到表单
+function loadTemplateToForm(templateId, closeTemplateManager = false) {
+    const template = state.templates.find(t => t.id === templateId);
+    if (!template) {
+        alert('模板不存在');
+        return;
+    }
+
+    // 关闭模板管理器
+    if (closeTemplateManager) {
+        document.getElementById('template-manager-modal').style.display = 'none';
+    }
+
+    // 打开创建实例模态框
+    if (state.servers.length === 0) {
+        alert('请先添加服务器');
+        return;
+    }
+    loadServerSelect();
+    elements.createInstanceModal.style.display = 'block';
+
+    // 填充表单
+    const form = elements.createInstanceForm;
+    const config = template.config;
+
+    // 基础配置
+    if (config.panelType) form.querySelector('[name="panelType"]').value = config.panelType;
+    if (config.serverType) form.querySelector('[name="serverType"]').value = config.serverType;
+    if (config.panelUrl) form.querySelector('[name="panelUrl"]').value = config.panelUrl;
+    if (config.panelKey) form.querySelector('[name="panelKey"]').value = config.panelKey;
+
+    // 数据库配置
+    if (config.dbHost) form.querySelector('[name="dbHost"]').value = config.dbHost;
+    if (config.dbPort) form.querySelector('[name="dbPort"]').value = config.dbPort;
+    if (config.dbName) form.querySelector('[name="dbName"]').value = config.dbName;
+    if (config.dbUser) form.querySelector('[name="dbUser"]').value = config.dbUser;
+    if (config.dbPassword) form.querySelector('[name="dbPassword"]').value = config.dbPassword;
+
+    // 日志配置
+    if (config.logLevel) form.querySelector('[name="logLevel"]').value = config.logLevel;
+    if (config.logFile) form.querySelector('[name="logFile"]').value = config.logFile;
+
+    // 检查间隔和限制
+    if (config.checkInterval) form.querySelector('[name="checkInterval"]').value = config.checkInterval;
+    if (config.userConnLimit) form.querySelector('[name="userConnLimit"]').value = config.userConnLimit;
+    if (config.userSpeedLimit) form.querySelector('[name="userSpeedLimit"]').value = config.userSpeedLimit;
+
+    // DNS 配置
+    if (config.enableDNS !== undefined) {
+        const dnsCheckbox = form.querySelector('[name="enableDNS"]');
+        if (dnsCheckbox) dnsCheckbox.checked = config.enableDNS;
+    }
+    if (config.defaultDns) form.querySelector('[name="defaultDns"]').value = config.defaultDns;
+    if (config.dnsCacheTime) form.querySelector('[name="dnsCacheTime"]').value = config.dnsCacheTime;
+    if (config.dnsStrategy) form.querySelector('[name="dnsStrategy"]').value = config.dnsStrategy;
+    if (config.dnsType) form.querySelector('[name="dnsType"]').value = config.dnsType;
+    if (config.dnsListenPort) form.querySelector('[name="dnsListenPort"]').value = config.dnsListenPort;
+
+    // 路由配置
+    if (config.routeConfig) form.querySelector('[name="routeConfig"]').value = config.routeConfig;
+    if (config.blockList) form.querySelector('[name="blockList"]').value = config.blockList;
+
+    // 其他配置
+    if (config.enableProxyProtocol !== undefined) {
+        const proxyCheckbox = form.querySelector('[name="enableProxyProtocol"]');
+        if (proxyCheckbox) proxyCheckbox.checked = config.enableProxyProtocol;
+    }
+
+    addApiLog(`已加载模板: ${template.name}`, 'info');
+    alert(`已加载模板: ${template.name}\n请继续填写实例名称和节点 ID`);
+}
+
+// 编辑模板
+function editTemplate(templateId) {
+    const template = state.templates.find(t => t.id === templateId);
+    if (!template) {
+        alert('模板不存在');
+        return;
+    }
+
+    // 打开编辑模态框
+    const modal = document.getElementById('edit-template-modal');
+    const form = document.getElementById('edit-template-form');
+
+    // 保存模板 ID
+    form.dataset.templateId = templateId;
+
+    // 填充表单
+    form.querySelector('[name="name"]').value = template.name;
+    form.querySelector('[name="description"]').value = template.description || '';
+
+    const config = template.config;
+    if (config.panelType) form.querySelector('[name="panelType"]').value = config.panelType;
+    if (config.serverType) form.querySelector('[name="serverType"]').value = config.serverType;
+    if (config.panelUrl) form.querySelector('[name="panelUrl"]').value = config.panelUrl;
+    if (config.panelKey) form.querySelector('[name="panelKey"]').value = config.panelKey;
+
+    modal.style.display = 'block';
+}
+
+// 删除模板
+async function deleteTemplate(templateId) {
+    const template = state.templates.find(t => t.id === templateId);
+    if (!template) {
+        alert('模板不存在');
+        return;
+    }
+
+    if (!confirm(`确定要删除模板"${template.name}"吗？`)) {
+        return;
+    }
+
+    try {
+        await apiCall(`/templates/${templateId}`, {
+            method: 'DELETE'
+        });
+        alert('模板删除成功');
+        loadTemplates();
+    } catch (error) {
+        console.error('删除模板失败:', error);
+    }
+}
+
+// 初始化模板管理
+function initTemplateManagement() {
+    // 加载模板列表
+    loadTemplates();
+
+    // 模板管理器按钮
+    const templateManagerBtn = document.getElementById('template-manager-btn');
+    if (templateManagerBtn) {
+        templateManagerBtn.addEventListener('click', () => {
+            document.getElementById('template-manager-modal').style.display = 'block';
+            loadTemplates();
+        });
+    }
+
+    // 新建模板按钮
+    const addTemplateBtn = document.getElementById('add-template-btn');
+    if (addTemplateBtn) {
+        addTemplateBtn.addEventListener('click', () => {
+            document.getElementById('template-manager-modal').style.display = 'none';
+            document.getElementById('edit-template-modal').style.display = 'block';
+            document.getElementById('edit-template-form').reset();
+            delete document.getElementById('edit-template-form').dataset.templateId;
+        });
+    }
+
+    // 编辑模板表单提交
+    const editTemplateForm = document.getElementById('edit-template-form');
+    if (editTemplateForm) {
+        editTemplateForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(e.target);
+            const templateId = e.target.dataset.templateId;
+
+            const templateData = {
+                name: formData.get('name'),
+                description: formData.get('description') || '',
+                config: {
+                    panelType: formData.get('panelType'),
+                    serverType: formData.get('serverType'),
+                    panelUrl: formData.get('panelUrl'),
+                    panelKey: formData.get('panelKey')
+                }
+            };
+
+            try {
+                if (templateId) {
+                    // 更新模板
+                    await apiCall(`/templates/${templateId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(templateData)
+                    });
+                    alert('模板更新成功');
+                } else {
+                    // 创建模板
+                    await apiCall('/templates', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(templateData)
+                    });
+                    alert('模板创建成功');
+                }
+
+                document.getElementById('edit-template-modal').style.display = 'none';
+                loadTemplates();
+            } catch (error) {
+                console.error('保存模板失败:', error);
+            }
+        });
+    }
+
+    // 模板选择器变化事件
+    const loadTemplateSelect = document.getElementById('load-template-select');
+    if (loadTemplateSelect) {
+        loadTemplateSelect.addEventListener('change', (e) => {
+            const templateId = e.target.value;
+            if (templateId) {
+                loadTemplateToForm(templateId, false);
+            }
+        });
+    }
+
+    // 保存为模板并创建按钮
+    const saveAsTemplateBtn = document.getElementById('save-as-template-btn');
+    if (saveAsTemplateBtn) {
+        saveAsTemplateBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const templateName = prompt('请输入模板名称:');
+            if (!templateName) return;
+
+            const form = elements.createInstanceForm;
+            const formData = new FormData(form);
+
+            const templateData = {
+                name: templateName,
+                description: `基于实例 ${formData.get('instanceName') || '未命名'} 创建`,
+                config: {
+                    panelType: formData.get('panelType'),
+                    serverType: formData.get('serverType'),
+                    panelUrl: formData.get('panelUrl'),
+                    panelKey: formData.get('panelKey'),
+                    dbHost: formData.get('dbHost'),
+                    dbPort: formData.get('dbPort'),
+                    dbName: formData.get('dbName'),
+                    dbUser: formData.get('dbUser'),
+                    dbPassword: formData.get('dbPassword'),
+                    logLevel: formData.get('logLevel'),
+                    logFile: formData.get('logFile'),
+                    checkInterval: formData.get('checkInterval'),
+                    userConnLimit: formData.get('userConnLimit'),
+                    userSpeedLimit: formData.get('userSpeedLimit'),
+                    enableDNS: formData.get('enableDNS') === 'on',
+                    defaultDns: formData.get('defaultDns'),
+                    dnsCacheTime: formData.get('dnsCacheTime'),
+                    dnsStrategy: formData.get('dnsStrategy'),
+                    dnsType: formData.get('dnsType'),
+                    dnsListenPort: formData.get('dnsListenPort'),
+                    routeConfig: formData.get('routeConfig'),
+                    blockList: formData.get('blockList'),
+                    enableProxyProtocol: formData.get('enableProxyProtocol') === 'on'
+                }
+            };
+
+            try {
+                await apiCall('/templates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(templateData)
+                });
+
+                addApiLog(`模板 ${templateName} 保存成功`, 'success');
+                alert(`模板"${templateName}"保存成功！\n即将创建实例...`);
+
+                // 继续提交创建实例表单
+                form.requestSubmit();
+            } catch (error) {
+                console.error('保存模板失败:', error);
+                addApiLog(`保存模板失败: ${error.message}`, 'error');
+            }
+        });
     }
 }
