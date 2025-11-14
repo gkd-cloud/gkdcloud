@@ -121,12 +121,29 @@ class SogaInstaller {
       wget -N --no-check-certificate -O soga.tar.gz "${downloadUrl}" 2>&1 && \\
       echo "下载完成，开始解压..." && \\
       tar zxvf soga.tar.gz 2>&1 && \\
-      ls -lh soga && \\
-      chmod +x soga && \\
-      mkdir -p ${workDir} && \\
-      mv soga ${workDir}/soga && \\
-      chmod +x ${workDir}/soga && \\
-      rm -f soga.tar.gz
+      echo "解压完成，检查文件结构..." && \\
+      ls -lh && \\
+      if [ -d soga ]; then \\
+        echo "检测到 soga 是目录，查找二进制文件..." && \\
+        find soga -type f -executable && \\
+        if [ -f soga/soga ]; then \\
+          echo "找到 soga/soga 二进制文件" && \\
+          chmod +x soga/soga && \\
+          mkdir -p ${workDir} && \\
+          cp soga/soga ${workDir}/soga && \\
+          chmod +x ${workDir}/soga; \\
+        else \\
+          echo "错误：未找到二进制文件" && exit 1; \\
+        fi; \\
+      else \\
+        echo "soga 是文件，直接处理" && \\
+        chmod +x soga && \\
+        mkdir -p ${workDir} && \\
+        mv soga ${workDir}/soga && \\
+        chmod +x ${workDir}/soga; \\
+      fi && \\
+      rm -rf soga.tar.gz soga && \\
+      echo "安装完成"
     `;
 
     const downloadResult = await this.ssh.execCommand(downloadCmd);
@@ -224,13 +241,28 @@ class SogaInstaller {
         cd /usr/local && \\
         echo "开始解压..." && \\
         tar zxvf soga.tar.gz 2>&1 && \\
-        echo "解压完成" && \\
-        ls -lh soga && \\
-        chmod +x soga && \\
-        mkdir -p ${workDir} && \\
-        mv soga ${workDir}/soga && \\
-        chmod +x ${workDir}/soga && \\
-        rm -f soga.tar.gz && \\
+        echo "解压完成，检查文件结构..." && \\
+        ls -lh && \\
+        if [ -d soga ]; then \\
+          echo "检测到 soga 是目录，查找二进制文件..." && \\
+          find soga -type f -executable && \\
+          if [ -f soga/soga ]; then \\
+            echo "找到 soga/soga 二进制文件" && \\
+            chmod +x soga/soga && \\
+            mkdir -p ${workDir} && \\
+            cp soga/soga ${workDir}/soga && \\
+            chmod +x ${workDir}/soga; \\
+          else \\
+            echo "错误：未找到二进制文件" && exit 1; \\
+          fi; \\
+        else \\
+          echo "soga 是文件，直接处理" && \\
+          chmod +x soga && \\
+          mkdir -p ${workDir} && \\
+          mv soga ${workDir}/soga && \\
+          chmod +x ${workDir}/soga; \\
+        fi && \\
+        rm -rf soga.tar.gz soga && \\
         echo "安装完成"
       `;
     } else {
