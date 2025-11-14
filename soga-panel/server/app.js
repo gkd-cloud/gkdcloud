@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const serverRoutes = require('./routes/server');
 const sogaRoutes = require('./routes/soga');
 const routeConfigsRoutes = require('./routes/route-configs');
+const versionRoutes = require('./routes/version');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,6 +54,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/servers', authMiddleware, serverRoutes);
 app.use('/api/soga', authMiddleware, sogaRoutes);
 app.use('/api/route-configs', authMiddleware, routeConfigsRoutes);
+app.use('/api/version', authMiddleware, versionRoutes);
 
 // 健康检查（不需要认证）
 app.get('/api/health', (req, res) => {
