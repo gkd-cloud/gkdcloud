@@ -130,17 +130,34 @@ const authMiddleware = async (req, res, next) => {
 
   const authHeader = req.headers['authorization'];
   const token = authHeader ? authHeader.replace('Bearer ', '') : null;
-  
+
+  // 记录认证详情用于调试
+  const requestInfo = `${req.method} ${req.path}`;
+
   if (!token) {
-    return res.status(401).json({ error: '未登录', requiresAuth: true });
+    console.warn(`[AUTH] 认证失败 - 缺少 token: ${requestInfo}`);
+    return res.status(401).json({
+      error: '未登录',
+      requiresAuth: true,
+      debug: 'No Authorization header found'
+    });
   }
 
   const result = await AuthService.verifyToken(token);
-  
+
   if (result.valid) {
+    // 认证成功，记录（仅在上传等关键操作时）
+    if (req.path.includes('/packages') || req.path.includes('/install')) {
+      console.log(`[AUTH] 认证成功: ${requestInfo}`);
+    }
     next();
   } else {
-    res.status(401).json({ error: result.message, requiresAuth: true });
+    console.warn(`[AUTH] Token 验证失败: ${requestInfo} - ${result.message}`);
+    res.status(401).json({
+      error: result.message,
+      requiresAuth: true,
+      debug: `Token validation failed: ${result.message}`
+    });
   }
 };
 
