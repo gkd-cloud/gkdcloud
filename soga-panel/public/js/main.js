@@ -1,5 +1,161 @@
 const API_BASE = '/api';
 
+// ==================== 通知框系统 ====================
+
+// Toast 通知
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const icons = {
+        success: '✓',
+        error: '✗',
+        warning: '⚠',
+        info: 'ℹ'
+    };
+
+    const titles = {
+        success: '成功',
+        error: '错误',
+        warning: '警告',
+        info: '提示'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type] || icons.info}</div>
+        <div class="toast-content">
+            <div class="toast-title">${titles[type] || titles.info}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+    `;
+
+    container.appendChild(toast);
+
+    // 自动移除
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.classList.add('removing');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    return toast;
+}
+
+// 确认对话框
+function showConfirm(message, options = {}) {
+    return new Promise((resolve) => {
+        const {
+            title = '确认操作',
+            icon = '❓',
+            confirmText = '确定',
+            cancelText = '取消',
+            danger = false
+        } = options;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = `
+            <div class="confirm-dialog">
+                <div class="confirm-icon">${icon}</div>
+                <div class="confirm-title">${title}</div>
+                <div class="confirm-message">${message}</div>
+                <div class="confirm-buttons">
+                    <button class="btn btn-cancel">${cancelText}</button>
+                    <button class="btn btn-confirm ${danger ? 'danger' : ''}">${confirmText}</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const confirmBtn = overlay.querySelector('.btn-confirm');
+        const cancelBtn = overlay.querySelector('.btn-cancel');
+
+        confirmBtn.onclick = () => {
+            overlay.remove();
+            resolve(true);
+        };
+
+        cancelBtn.onclick = () => {
+            overlay.remove();
+            resolve(false);
+        };
+
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+                resolve(false);
+            }
+        };
+    });
+}
+
+// Prompt 输入框
+function showPrompt(message, options = {}) {
+    return new Promise((resolve) => {
+        const {
+            title = '输入',
+            defaultValue = '',
+            placeholder = '',
+            confirmText = '确定',
+            cancelText = '取消'
+        } = options;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = `
+            <div class="confirm-dialog">
+                <div class="confirm-title">${title}</div>
+                <div class="confirm-message">${message}</div>
+                <input type="text" class="prompt-input" placeholder="${placeholder}" value="${defaultValue}" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; margin-bottom: 20px; font-size: 14px;">
+                <div class="confirm-buttons">
+                    <button class="btn btn-cancel">${cancelText}</button>
+                    <button class="btn btn-confirm">${confirmText}</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const input = overlay.querySelector('.prompt-input');
+        const confirmBtn = overlay.querySelector('.btn-confirm');
+        const cancelBtn = overlay.querySelector('.btn-cancel');
+
+        input.focus();
+        input.select();
+
+        confirmBtn.onclick = () => {
+            const value = input.value.trim();
+            overlay.remove();
+            resolve(value || null);
+        };
+
+        cancelBtn.onclick = () => {
+            overlay.remove();
+            resolve(null);
+        };
+
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                confirmBtn.click();
+            } else if (e.key === 'Escape') {
+                cancelBtn.click();
+            }
+        };
+
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+                resolve(null);
+            }
+        };
+    });
+}
+
 // API 日志收集
 const apiLogs = [];
 const MAX_LOGS = 100;
