@@ -2510,10 +2510,73 @@ function initTemplateManagement() {
         });
     }
 
-    // 保存为模板并创建按钮
-    const saveAsTemplateBtn = document.getElementById('save-as-template-btn');
-    if (saveAsTemplateBtn) {
-        saveAsTemplateBtn.addEventListener('click', async (e) => {
+    // 仅保存模板按钮（不创建实例）
+    const saveTemplateOnlyBtn = document.getElementById('save-template-only-btn');
+    if (saveTemplateOnlyBtn) {
+        saveTemplateOnlyBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const templateName = prompt('请输入模板名称:');
+            if (!templateName) return;
+
+            const form = elements.createInstanceForm;
+            const formData = new FormData(form);
+
+            const templateData = {
+                name: templateName,
+                description: formData.get('instanceName') ?
+                    `基于实例配置 ${formData.get('instanceName')} 创建` :
+                    '手动创建的配置模板',
+                config: {
+                    panelType: formData.get('panelType'),
+                    serverType: formData.get('serverType'),
+                    panelUrl: formData.get('panelUrl'),
+                    panelKey: formData.get('panelKey'),
+                    dbHost: formData.get('dbHost'),
+                    dbPort: formData.get('dbPort'),
+                    dbName: formData.get('dbName'),
+                    dbUser: formData.get('dbUser'),
+                    dbPassword: formData.get('dbPassword'),
+                    logLevel: formData.get('logLevel'),
+                    logFile: formData.get('logFile'),
+                    checkInterval: formData.get('checkInterval'),
+                    userConnLimit: formData.get('userConnLimit'),
+                    userSpeedLimit: formData.get('userSpeedLimit'),
+                    enableDNS: formData.get('enableDNS') === 'on',
+                    defaultDns: formData.get('defaultDns'),
+                    dnsCacheTime: formData.get('dnsCacheTime'),
+                    dnsStrategy: formData.get('dnsStrategy'),
+                    dnsType: formData.get('dnsType'),
+                    dnsListenPort: formData.get('dnsListenPort'),
+                    routeConfig: formData.get('routeConfig'),
+                    blockList: formData.get('blockList'),
+                    enableProxyProtocol: formData.get('enableProxyProtocol') === 'on'
+                }
+            };
+
+            try {
+                await apiCall('/templates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(templateData)
+                });
+
+                addApiLog(`模板 ${templateName} 保存成功`, 'success');
+                alert(`✓ 模板"${templateName}"保存成功！\n\n您可以在"模板管理"中查看和使用此模板。`);
+
+                // 刷新模板列表
+                loadTemplates();
+            } catch (error) {
+                console.error('保存模板失败:', error);
+                addApiLog(`保存模板失败: ${error.message}`, 'error');
+            }
+        });
+    }
+
+    // 保存模板并创建实例按钮
+    const saveTemplateAndCreateBtn = document.getElementById('save-template-and-create-btn');
+    if (saveTemplateAndCreateBtn) {
+        saveTemplateAndCreateBtn.addEventListener('click', async (e) => {
             e.preventDefault();
 
             const templateName = prompt('请输入模板名称:');
@@ -2560,7 +2623,10 @@ function initTemplateManagement() {
                 });
 
                 addApiLog(`模板 ${templateName} 保存成功`, 'success');
-                alert(`模板"${templateName}"保存成功！\n即将创建实例...`);
+                alert(`✓ 模板"${templateName}"保存成功！\n即将创建实例...`);
+
+                // 刷新模板列表
+                loadTemplates();
 
                 // 继续提交创建实例表单
                 form.requestSubmit();
