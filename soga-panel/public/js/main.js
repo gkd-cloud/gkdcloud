@@ -1,5 +1,161 @@
 const API_BASE = '/api';
 
+// ==================== 通知框系统 ====================
+
+// Toast 通知
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const icons = {
+        success: '✓',
+        error: '✗',
+        warning: '⚠',
+        info: 'ℹ'
+    };
+
+    const titles = {
+        success: '成功',
+        error: '错误',
+        warning: '警告',
+        info: '提示'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type] || icons.info}</div>
+        <div class="toast-content">
+            <div class="toast-title">${titles[type] || titles.info}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+    `;
+
+    container.appendChild(toast);
+
+    // 自动移除
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.classList.add('removing');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    return toast;
+}
+
+// 确认对话框
+function showConfirm(message, options = {}) {
+    return new Promise((resolve) => {
+        const {
+            title = '确认操作',
+            icon = '❓',
+            confirmText = '确定',
+            cancelText = '取消',
+            danger = false
+        } = options;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = `
+            <div class="confirm-dialog">
+                <div class="confirm-icon">${icon}</div>
+                <div class="confirm-title">${title}</div>
+                <div class="confirm-message">${message}</div>
+                <div class="confirm-buttons">
+                    <button class="btn btn-cancel">${cancelText}</button>
+                    <button class="btn btn-confirm ${danger ? 'danger' : ''}">${confirmText}</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const confirmBtn = overlay.querySelector('.btn-confirm');
+        const cancelBtn = overlay.querySelector('.btn-cancel');
+
+        confirmBtn.onclick = () => {
+            overlay.remove();
+            resolve(true);
+        };
+
+        cancelBtn.onclick = () => {
+            overlay.remove();
+            resolve(false);
+        };
+
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+                resolve(false);
+            }
+        };
+    });
+}
+
+// Prompt 输入框
+function showPrompt(message, options = {}) {
+    return new Promise((resolve) => {
+        const {
+            title = '输入',
+            defaultValue = '',
+            placeholder = '',
+            confirmText = '确定',
+            cancelText = '取消'
+        } = options;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = `
+            <div class="confirm-dialog">
+                <div class="confirm-title">${title}</div>
+                <div class="confirm-message">${message}</div>
+                <input type="text" class="prompt-input" placeholder="${placeholder}" value="${defaultValue}" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; margin-bottom: 20px; font-size: 14px;">
+                <div class="confirm-buttons">
+                    <button class="btn btn-cancel">${cancelText}</button>
+                    <button class="btn btn-confirm">${confirmText}</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const input = overlay.querySelector('.prompt-input');
+        const confirmBtn = overlay.querySelector('.btn-confirm');
+        const cancelBtn = overlay.querySelector('.btn-cancel');
+
+        input.focus();
+        input.select();
+
+        confirmBtn.onclick = () => {
+            const value = input.value.trim();
+            overlay.remove();
+            resolve(value || null);
+        };
+
+        cancelBtn.onclick = () => {
+            overlay.remove();
+            resolve(null);
+        };
+
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                confirmBtn.click();
+            } else if (e.key === 'Escape') {
+                cancelBtn.click();
+            }
+        };
+
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+                resolve(null);
+            }
+        };
+    });
+}
+
 // API 日志收集
 const apiLogs = [];
 const MAX_LOGS = 100;
@@ -60,10 +216,10 @@ function clearApiLogs() {
 function copyApiLogs() {
     const logsText = apiLogs.map(log => log.fullText).join('\n');
     navigator.clipboard.writeText(logsText).then(() => {
-        alert('日志已复制到剪贴板');
+        showToast('日志已复制到剪贴板', 'success');
     }).catch(err => {
         console.error('复制失败:', err);
-        alert('复制失败，请手动选择并复制');
+        showToast('复制失败，请手动选择并复制', 'error');
     });
 }
 
@@ -250,8 +406,8 @@ function initLogout() {
     }
 }
 
-function handleLogout() {
-    if (confirm('确定要退出登录吗？')) {
+async function handleLogout() {
+    if (await showConfirm('确定要退出登录吗？')) {
         localStorage.removeItem('authToken');
         addApiLog('用户已登出', 'info');
         window.location.href = '/login.html';
@@ -318,7 +474,7 @@ function initModals() {
     // 创建实例
     elements.createInstanceBtn.addEventListener('click', () => {
         if (state.servers.length === 0) {
-            alert('请先添加服务器');
+            showToast('请先添加服务器', 'info');
             return;
         }
         loadServerSelect();
@@ -522,7 +678,7 @@ async function apiCall(endpoint, options = {}, showErrorAlert = true) {
             console.error('[API] 网络错误或请求失败:', error);
             addApiLog(`网络错误: ${error.message}`, 'error');
             if (showErrorAlert) {
-                alert(`网络错误: ${error.message}`);
+                showToast(`网络错误: ${error.message}`, "error");
             }
             throw error;
         }
@@ -530,7 +686,7 @@ async function apiCall(endpoint, options = {}, showErrorAlert = true) {
         console.error('[API] 处理错误:', error);
         // 只在需要显示错误且非 401 错误时显示 alert
         if (showErrorAlert && !error.message.includes('未授权')) {
-            alert(`错误: ${error.message}`);
+            showToast(`错误: ${error.message}`, "error");
         }
         throw error;
     }
@@ -646,7 +802,7 @@ async function handleAddServer(e) {
         });
 
         elements.addServerModal.style.display = 'none';
-        alert('服务器添加成功');
+        showToast('服务器添加成功', 'success');
         loadServers();
     } catch (error) {
         // Error already handled in apiCall
@@ -659,7 +815,7 @@ async function testServer(serverId) {
         const result = await apiCall(`/servers/${serverId}/test`, {
             method: 'POST'
         });
-        alert(result.message);
+        showToast(result.message, 'info');
     } catch (error) {
         // Error already handled in apiCall
     }
@@ -671,13 +827,13 @@ async function getServerInfo(serverId) {
         const result = await apiCall(`/servers/${serverId}/info`);
         const info = result.info;
         
-        alert(`系统信息:
+        showToast(`系统信息:
 操作系统: ${info.os}
 内核版本: ${info.kernel}
 架构: ${info.arch}
 CPU: ${info.cpu}
 内存: ${info.memory}
-磁盘: ${info.disk}`);
+磁盘: ${info.disk}`, 'info');
     } catch (error) {
         // Error already handled in apiCall
     }
@@ -685,7 +841,7 @@ CPU: ${info.cpu}
 
 // 删除服务器
 async function deleteServer(serverId) {
-    if (!confirm('确定要删除此服务器吗？')) {
+    if (!await showConfirm('确定要删除此服务器吗？')) {
         return;
     }
 
@@ -693,7 +849,7 @@ async function deleteServer(serverId) {
         await apiCall(`/servers/${serverId}`, {
             method: 'DELETE'
         });
-        alert('服务器删除成功');
+        showToast('服务器删除成功', 'success');
         loadServers();
     } catch (error) {
         // Error already handled in apiCall
@@ -822,7 +978,7 @@ async function handleCreateInstance(e) {
         const packageId = savedPackageSelect.value;
 
         if (!packageId) {
-            alert('请选择已保存的离线包');
+            showToast('请选择已保存的离线包', 'success');
             return;
         }
 
@@ -832,7 +988,7 @@ async function handleCreateInstance(e) {
             config.offlineMode = true;
             config.sogaPackage = result.content;
         } catch (error) {
-            alert('获取离线包失败，请重试');
+            showToast('获取离线包失败，请重试', 'error');
             return;
         }
     } else if (installMode === 'offline-upload') {
@@ -841,7 +997,7 @@ async function handleCreateInstance(e) {
         const file = fileInput.files[0];
 
         if (!file) {
-            alert('请选择 Soga 文件');
+            showToast('请选择 Soga 文件', 'info');
             return;
         }
 
@@ -862,7 +1018,7 @@ async function handleCreateInstance(e) {
             config.sogaPackage = fileBase64;
         } catch (error) {
             addApiLog(`文件读取失败: ${error.message}`, 'error');
-            alert('文件读取失败: ' + error.message);
+            showToast('文件读取失败: ' + error.message, 'info');
             return;
         }
     }
@@ -892,7 +1048,7 @@ async function handleCreateInstance(e) {
 
         addApiLog(`实例 ${data.instanceName} 安装成功`, 'success');
         elements.createInstanceModal.style.display = 'none';
-        alert('实例创建成功，正在启动...');
+        showToast('实例创建成功，正在启动...', 'success');
         loadInstances();
     } catch (error) {
         addApiLog(`实例 ${data.instanceName} 安装失败: ${error.message}`, 'error');
@@ -903,7 +1059,7 @@ async function handleCreateInstance(e) {
         } else {
             // 没有详细日志时，提醒用户查看API日志
             if (!error.message.includes('未授权')) {
-                alert(`安装失败: ${error.message}\n\n详细信息请查看 API 日志（点击右下角📋按钮）`);
+                showToast(`安装失败: ${error.message}\n\n详细信息请查看 API 日志（点击右下角📋按钮）`, "error");
             }
         }
         // Error already handled in apiCall with alert
@@ -930,10 +1086,10 @@ function showInstallLogs(logs, errorMessage) {
 function copyInstallLogs() {
     const logsText = window.currentInstallLogs || document.getElementById('install-logs-content').textContent;
     navigator.clipboard.writeText(logsText).then(() => {
-        alert('日志已复制到剪贴板');
+        showToast('日志已复制到剪贴板', 'success');
     }).catch(err => {
         console.error('复制失败:', err);
-        alert('复制失败，请手动选择并复制');
+        showToast('复制失败，请手动选择并复制', 'error');
     });
 }
 
@@ -965,7 +1121,7 @@ async function startInstance(serverId, instanceName) {
         const result = await apiCall(`/soga/${serverId}/${instanceName}/start`, {
             method: 'POST'
         });
-        alert(result.message);
+        showToast(result.message, 'info');
         loadInstances();
     } catch (error) {
         // Error already handled in apiCall
@@ -978,7 +1134,7 @@ async function stopInstance(serverId, instanceName) {
         const result = await apiCall(`/soga/${serverId}/${instanceName}/stop`, {
             method: 'POST'
         });
-        alert(result.message);
+        showToast(result.message, 'info');
         loadInstances();
     } catch (error) {
         // Error already handled in apiCall
@@ -991,7 +1147,7 @@ async function restartInstance(serverId, instanceName) {
         const result = await apiCall(`/soga/${serverId}/${instanceName}/restart`, {
             method: 'POST'
         });
-        alert(result.message);
+        showToast(result.message, 'info');
         loadInstances();
     } catch (error) {
         // Error already handled in apiCall
@@ -1027,7 +1183,7 @@ async function deleteInstance(serverId, instanceName) {
         const result = await apiCall(`/soga/${serverId}/${instanceName}`, {
             method: 'DELETE'
         });
-        alert(result.message);
+        showToast(result.message, 'info');
         loadInstances();
     } catch (error) {
         // Error already handled in apiCall
@@ -1127,7 +1283,7 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
     const originalBtnText = submitBtn.textContent;
 
     if (!fileInput.files[0]) {
-        alert('请选择文件');
+        showToast('请选择文件', 'info');
         return;
     }
 
@@ -1179,7 +1335,7 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
 
         console.log('离线包上传成功！');
         addApiLog('离线包上传成功！', 'success');
-        alert('离线包上传成功！');
+        showToast('离线包上传成功！', 'success');
         elements.uploadPackageModal.style.display = 'none';
         elements.uploadPackageForm.reset();
         loadPackages();
@@ -1191,7 +1347,7 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
         // 如果不是401错误（401已经自动登出），显示详细错误信息
         if (!error.message.includes('未授权')) {
             const errorDetail = error.data ? JSON.stringify(error.data, null, 2) : error.message;
-            alert(`上传失败: ${error.message}\n\n详细信息请查看 API 日志（点击右下角📋按钮）`);
+            showToast(`上传失败: ${error.message}\n\n详细信息请查看 API 日志（点击右下角📋按钮）`, "error");
         }
     } finally {
         // 恢复按钮状态
@@ -1202,7 +1358,7 @@ elements.uploadPackageForm?.addEventListener('submit', async (e) => {
 
 // 删除离线包
 async function deletePackage(id) {
-    if (!confirm('确定要删除此离线包吗？')) {
+    if (!await showConfirm('确定要删除此离线包吗？')) {
         return;
     }
 
@@ -1210,7 +1366,7 @@ async function deletePackage(id) {
         await apiCall(`/soga/packages/${id}`, {
             method: 'DELETE'
         });
-        alert('离线包删除成功');
+        showToast('离线包删除成功', 'success');
         loadPackages();
     } catch (error) {
         // Error already handled in apiCall
@@ -1391,7 +1547,7 @@ elements.addRouteConfigForm?.addEventListener('submit', async (e) => {
         });
 
         addApiLog('路由配置保存成功', 'success');
-        alert('路由配置保存成功');
+        showToast('路由配置保存成功', 'success');
         elements.addRouteConfigModal.style.display = 'none';
         elements.addRouteConfigForm.reset();
         loadRouteConfigs();
@@ -1413,7 +1569,7 @@ async function setDefaultRouteConfig(id) {
         });
 
         addApiLog('默认配置已更新', 'success');
-        alert('默认配置已更新');
+        showToast('默认配置已更新', 'success');
         loadRouteConfigs();
     } catch (error) {
         console.error('设置默认配置失败:', error);
@@ -1425,7 +1581,7 @@ async function setDefaultRouteConfig(id) {
 function viewRouteConfig(id) {
     const config = state.routeConfigs.find(c => c.id === id);
     if (!config) {
-        alert('配置不存在');
+        showToast('配置不存在', 'info');
         return;
     }
 
@@ -1444,12 +1600,12 @@ ${config.blockList || '未设置'}
 创建时间: ${formatDate(config.createdAt)}
     `.trim();
 
-    alert(details);
+    showToast(details, 'info');
 }
 
 // 删除路由配置
 async function deleteRouteConfig(id) {
-    if (!confirm('确定要删除此路由配置吗？')) {
+    if (!await showConfirm('确定要删除此路由配置吗？')) {
         return;
     }
 
@@ -1459,7 +1615,7 @@ async function deleteRouteConfig(id) {
             method: 'DELETE'
         });
 
-        alert('路由配置删除成功');
+        showToast('路由配置删除成功', 'success');
         loadRouteConfigs();
     } catch (error) {
         console.error('删除路由配置失败:', error);
@@ -1479,7 +1635,7 @@ async function diagnoseServer(serverId, instanceName = null) {
 
     const server = state.servers.find(s => s.id === serverId);
     if (!server) {
-        alert('服务器不存在');
+        showToast('服务器不存在', 'info');
         return;
     }
 
@@ -1575,7 +1731,7 @@ async function checkForUpdates() {
             throw new Error(response.error || '检查更新失败');
         }
     } catch (error) {
-        alert('检查更新失败: ' + error.message);
+        showToast('检查更新失败: ' + error.message, 'info');
     } finally {
         elements.checkUpdateBtn.disabled = false;
         elements.checkUpdateBtn.innerHTML = '<span>🔄</span>';
@@ -2000,8 +2156,8 @@ function enhanceTextarea(textarea, options = {}) {
         clearBtn.type = 'button';
         clearBtn.className = 'btn btn-sm btn-secondary';
         clearBtn.innerHTML = '🗑️ 清空';
-        clearBtn.onclick = () => {
-            if (confirm('确定要清空内容吗？')) {
+        clearBtn.onclick = async () => {
+            if (await showConfirm('确定要清空内容吗？')) {
                 textarea.value = '';
             }
         };
@@ -2018,7 +2174,7 @@ function enhanceTextarea(textarea, options = {}) {
 function formatTextarea(textarea, format) {
     const content = textarea.value.trim();
     if (!content) {
-        alert('内容为空，无需格式化');
+        showToast('内容为空，无需格式化', 'info');
         return;
     }
 
@@ -2049,7 +2205,7 @@ function formatTextarea(textarea, format) {
             textarea.style.backgroundColor = '';
         }, 300);
     } catch (error) {
-        alert(`格式化失败: ${error.message}`);
+        showToast(`格式化失败: ${error.message}`, "error");
         addApiLog(`格式化失败: ${error.message}`, 'error');
     }
 }
@@ -2109,24 +2265,24 @@ function validateTextarea(textarea, format) {
     const content = textarea.value.trim();
 
     if (!content) {
-        alert('内容为空');
+        showToast('内容为空', 'info');
         return;
     }
 
     try {
         if (format === 'json') {
             JSON.parse(content);
-            alert('✓ JSON 格式正确');
+            showToast('JSON 格式正确', 'success');
             addApiLog('JSON 验证通过', 'success');
         } else if (format === 'toml') {
             // TOML 基本验证
             const valid = validateToml(content);
             if (valid) {
-                alert('✓ TOML 格式看起来正确');
+                showToast('TOML 格式看起来正确', 'success');
                 addApiLog('TOML 验证通过', 'success');
             }
         } else {
-            alert('✓ 内容不为空');
+            showToast('内容不为空', 'success');
         }
 
         textarea.style.borderColor = '#28a745';
@@ -2134,7 +2290,7 @@ function validateTextarea(textarea, format) {
             textarea.style.borderColor = '';
         }, 1000);
     } catch (error) {
-        alert(`✗ 格式错误:\n${error.message}`);
+        showToast(`格式错误:\n${error.message}`, "error");
         addApiLog(`验证失败: ${error.message}`, 'error');
         textarea.style.borderColor = '#dc3545';
     }
@@ -2308,7 +2464,7 @@ function updateTemplateSelector() {
 function loadTemplateToForm(templateId, closeTemplateManager = false) {
     const template = state.templates.find(t => t.id === templateId);
     if (!template) {
-        alert('模板不存在');
+        showToast('模板不存在', 'info');
         return;
     }
 
@@ -2319,7 +2475,7 @@ function loadTemplateToForm(templateId, closeTemplateManager = false) {
 
     // 打开创建实例模态框
     if (state.servers.length === 0) {
-        alert('请先添加服务器');
+        showToast('请先添加服务器', 'info');
         return;
     }
     loadServerSelect();
@@ -2374,14 +2530,14 @@ function loadTemplateToForm(templateId, closeTemplateManager = false) {
     }
 
     addApiLog(`已加载模板: ${template.name}`, 'info');
-    alert(`已加载模板: ${template.name}\n请继续填写实例名称和节点 ID`);
+    showToast(`已加载模板: ${template.name}\n请继续填写实例名称和节点 ID`, "success");
 }
 
 // 编辑模板
 function editTemplate(templateId) {
     const template = state.templates.find(t => t.id === templateId);
     if (!template) {
-        alert('模板不存在');
+        showToast('模板不存在', 'info');
         return;
     }
 
@@ -2410,7 +2566,7 @@ function editTemplate(templateId) {
 async function deleteTemplate(templateId) {
     const template = state.templates.find(t => t.id === templateId);
     if (!template) {
-        alert('模板不存在');
+        showToast('模板不存在', 'info');
         return;
     }
 
@@ -2422,7 +2578,7 @@ async function deleteTemplate(templateId) {
         await apiCall(`/templates/${templateId}`, {
             method: 'DELETE'
         });
-        alert('模板删除成功');
+        showToast('模板删除成功', 'success');
         loadTemplates();
     } catch (error) {
         console.error('删除模板失败:', error);
@@ -2483,7 +2639,7 @@ function initTemplateManagement() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(templateData)
                     });
-                    alert('模板更新成功');
+                    showToast('模板更新成功', 'success');
                 } else {
                     // 创建模板
                     await apiCall('/templates', {
@@ -2491,7 +2647,7 @@ function initTemplateManagement() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(templateData)
                     });
-                    alert('模板创建成功');
+                    showToast('模板创建成功', 'success');
                 }
 
                 document.getElementById('edit-template-modal').style.display = 'none';
@@ -2519,7 +2675,7 @@ function initTemplateManagement() {
         saveTemplateOnlyBtn.addEventListener('click', async (e) => {
             e.preventDefault();
 
-            const templateName = prompt('请输入模板名称:');
+            const templateName = await showPrompt('请输入模板名称:');
             if (!templateName) return;
 
             const form = elements.createInstanceForm;
@@ -2566,7 +2722,7 @@ function initTemplateManagement() {
                 });
 
                 addApiLog(`模板 ${templateName} 保存成功`, 'success');
-                alert(`✓ 模板"${templateName}"保存成功！\n\n您可以在"模板管理"中查看和使用此模板。`);
+                showToast(`模板"${templateName}"保存成功！\n\n您可以在"模板管理"中查看和使用此模板。`, "success");
 
                 // 刷新模板列表
                 loadTemplates();
@@ -2583,7 +2739,7 @@ function initTemplateManagement() {
         saveTemplateAndCreateBtn.addEventListener('click', async (e) => {
             e.preventDefault();
 
-            const templateName = prompt('请输入模板名称:');
+            const templateName = await showPrompt('请输入模板名称:');
             if (!templateName) return;
 
             const form = elements.createInstanceForm;
@@ -2628,7 +2784,7 @@ function initTemplateManagement() {
                 });
 
                 addApiLog(`模板 ${templateName} 保存成功`, 'success');
-                alert(`✓ 模板"${templateName}"保存成功！\n即将创建实例...`);
+                showToast(`模板"${templateName}"保存成功！\n即将创建实例...`, "success");
 
                 // 刷新模板列表
                 loadTemplates();

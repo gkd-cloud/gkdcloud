@@ -359,65 +359,71 @@ body {
 
 .card {
     background-color: var(--card-bg);
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: var(--shadow);
-    transition: all 0.3s ease;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 0;
+    transition: box-shadow 0.2s;
+    overflow: hidden;
 }
 
 .card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
-    padding-bottom: 15px;
-    border-bottom: 2px solid var(--border-color);
+    padding: 14px 16px;
+    border-bottom: 1px solid #f5f5f5;
+    background: #fafafa;
 }
 
 .card-title {
-    font-size: 1.3em;
+    font-size: 14px;
     font-weight: 600;
-    color: var(--primary-color);
+    color: #333;
 }
 
 .card-body {
-    margin-bottom: 15px;
+    padding: 16px;
 }
 
 .card-info {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 0;
 }
 
 .card-info-item {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px;
-    background-color: #f9f9f9;
-    border-radius: 5px;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f8f8f8;
+    font-size: 13px;
+}
+
+.card-info-item:last-child {
+    border-bottom: none;
 }
 
 .card-info-label {
-    font-weight: 600;
-    min-width: 80px;
     color: #666;
+    font-weight: 500;
 }
 
 .card-info-value {
-    flex: 1;
+    color: #333;
+    text-align: right;
     word-break: break-all;
 }
 
 .card-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid #f5f5f5;
+    background: #fafafa;
     flex-wrap: wrap;
 }
 
@@ -431,12 +437,12 @@ body {
 /* ==================== 按钮样式 ==================== */
 
 .btn {
-    padding: 10px 20px;
+    padding: 8px 16px;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 14px;
-    transition: all 0.3s ease;
+    font-size: 13px;
+    transition: all 0.2s ease;
     font-weight: 500;
 }
 
@@ -540,13 +546,15 @@ body {
 
 .modal-content {
     background-color: var(--card-bg);
-    margin: 50px auto;
+    margin: 40px auto;
     padding: 0;
-    border-radius: 10px;
+    border-radius: 8px;
     width: 90%;
     max-width: 600px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    animation: slideDown 0.3s ease;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    animation: slideDown 0.25s ease;
 }
 
 .modal-content.large {
@@ -568,13 +576,16 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 25px;
-    border-bottom: 2px solid var(--border-color);
+    padding: 18px 24px;
+    border-bottom: 1px solid #f0f0f0;
+    background: #fafafa;
 }
 
 .modal-header h3 {
-    font-size: 1.5em;
-    color: var(--primary-color);
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
 }
 
 .close {
@@ -590,9 +601,7 @@ body {
 }
 
 .modal-body {
-    padding: 25px;
-    max-height: calc(100vh - 200px);
-    overflow-y: auto;
+    padding: 20px 24px 24px;
 }
 
 /* ==================== 表单样式 ==================== */
@@ -611,42 +620,47 @@ body {
 }
 
 .form-group {
-    margin-bottom: 15px;
+    margin-bottom: 14px;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: 5px;
-    font-weight: 600;
-    color: #555;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: #444;
+    font-size: 13px;
 }
 
 .form-group input[type="text"],
 .form-group input[type="password"],
 .form-group input[type="number"],
 .form-group input[type="url"],
+.form-group input[type="file"],
 .form-group select,
 .form-group textarea {
     width: 100%;
-    padding: 10px;
-    border: 2px solid var(--border-color);
-    border-radius: 6px;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
     font-size: 14px;
-    transition: border-color 0.3s ease;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #fff;
 }
 
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
     outline: none;
-    border-color: var(--primary-color);
+    border-color: #2196F3;
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
 }
 
 .form-group small {
     display: block;
-    margin-top: 5px;
-    color: #999;
+    margin-top: 4px;
+    color: #888;
     font-size: 12px;
+    line-height: 1.4;
 }
 
 .form-group input[type="checkbox"] {
@@ -662,9 +676,31 @@ body {
 
 .form-actions {
     display: flex;
-    justify-content: flex-end;
     gap: 10px;
+    justify-content: flex-end;
+    padding-top: 16px;
     margin-top: 20px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.form-section {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.form-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.form-section h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #f0f0f0;
 }
 
 /* ==================== 其他样式 ==================== */
@@ -1054,6 +1090,246 @@ footer {
     }
     100% {
         border-color: #e0e0e0;
+    }
+}
+
+/* ==================== 通知框系统 ==================== */
+
+/* Toast 通知 */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    background: white;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 300px;
+    max-width: 500px;
+    pointer-events: auto;
+    animation: slideInRight 0.3s ease-out;
+    border-left: 4px solid #333;
+}
+
+.toast.removing {
+    animation: slideOutRight 0.3s ease-out;
+}
+
+.toast-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.toast-message {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #999;
+    cursor: pointer;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+
+.toast-close:hover {
+    color: #333;
+}
+
+/* Toast 类型 */
+.toast.success {
+    border-left-color: #4CAF50;
+}
+
+.toast.success .toast-icon {
+    color: #4CAF50;
+}
+
+.toast.error {
+    border-left-color: #f44336;
+}
+
+.toast.error .toast-icon {
+    color: #f44336;
+}
+
+.toast.warning {
+    border-left-color: #ff9800;
+}
+
+.toast.warning .toast-icon {
+    color: #ff9800;
+}
+
+.toast.info {
+    border-left-color: #2196F3;
+}
+
+.toast.info .toast-icon {
+    color: #2196F3;
+}
+
+/* 确认对话框 */
+.confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.confirm-dialog {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    animation: scaleIn 0.2s ease-out;
+}
+
+.confirm-icon {
+    font-size: 48px;
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.confirm-title {
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 12px;
+    color: #333;
+}
+
+.confirm-message {
+    font-size: 14px;
+    text-align: center;
+    color: #666;
+    margin-bottom: 24px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.confirm-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.confirm-buttons .btn {
+    flex: 1;
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.confirm-buttons .btn-cancel {
+    background: #f5f5f5;
+    color: #333;
+}
+
+.confirm-buttons .btn-cancel:hover {
+    background: #e0e0e0;
+}
+
+.confirm-buttons .btn-confirm {
+    background: #2196F3;
+    color: white;
+}
+
+.confirm-buttons .btn-confirm:hover {
+    background: #1976D2;
+}
+
+.confirm-buttons .btn-confirm.danger {
+    background: #f44336;
+}
+
+.confirm-buttons .btn-confirm.danger:hover {
+    background: #d32f2f;
+}
+
+/* 动画 */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
     }
 }
 
