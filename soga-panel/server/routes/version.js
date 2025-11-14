@@ -30,46 +30,85 @@ const writeVersion = async (versionData) => {
   await fs.writeFile(VERSION_FILE, JSON.stringify(versionData, null, 2));
 };
 
-// 从 GitHub 获取最新版本信息
-const fetchGitHubLatestVersion = (repo) => {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'api.github.com',
-      path: `/repos/${repo}/releases/latest`,
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Soga-Panel'
-      }
-    };
-
-    https.get(options, (res) => {
-      let data = '';
-
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      res.on('end', () => {
-        try {
-          const release = JSON.parse(data);
-          if (release.tag_name) {
-            resolve({
-              version: release.tag_name.replace(/^v/, ''),
-              publishedAt: release.published_at,
-              description: release.body || '',
-              htmlUrl: release.html_url
-            });
-          } else {
-            reject(new Error('未找到最新版本'));
-          }
-        } catch (error) {
-          reject(error);
+// 从 GitHub 获取最新版本信息（支持 Release 和 Commit 两种模式）
+const fetchGitHubLatestVersion = async (repo, branch = 'main') => {
+  // 先尝试获取 Release
+  try {
+    const releaseInfo = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'api.github.com',
+        path: `/repos/${repo}/releases/latest`,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Soga-Panel'
         }
-      });
-    }).on('error', (error) => {
-      reject(error);
+      };
+
+      https.get(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const release = JSON.parse(data);
+            if (release.tag_name) {
+              resolve({
+                version: release.tag_name.replace(/^v/, ''),
+                publishedAt: release.published_at,
+                description: release.body || '',
+                htmlUrl: release.html_url,
+                type: 'release'
+              });
+            } else {
+              reject(new Error('No release found'));
+            }
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }).on('error', reject);
     });
-  });
+    return releaseInfo;
+  } catch (releaseError) {
+    // Release 不存在，尝试获取最新 commit
+    return new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'api.github.com',
+        path: `/repos/${repo}/commits/${branch}`,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Soga-Panel'
+        }
+      };
+
+      https.get(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const commit = JSON.parse(data);
+            if (commit.sha) {
+              // 使用 commit 日期作为版本号
+              const commitDate = new Date(commit.commit.author.date);
+              const version = `1.0.${commitDate.getFullYear()}${String(commitDate.getMonth() + 1).padStart(2, '0')}${String(commitDate.getDate()).padStart(2, '0')}`;
+
+              resolve({
+                version: version,
+                commit: commit.sha.substring(0, 7),
+                publishedAt: commit.commit.author.date,
+                description: `最新提交: ${commit.commit.message}\n\nCommit: ${commit.sha.substring(0, 7)}\n作者: ${commit.commit.author.name}`,
+                htmlUrl: commit.html_url,
+                type: 'commit'
+              });
+            } else {
+              reject(new Error('未找到最新提交'));
+            }
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }).on('error', reject);
+    });
+  }
 };
 
 // 比较版本号
@@ -112,7 +151,10 @@ router.get('/check-update', async (req, res) => {
     const currentVersion = await readVersion();
 
     try {
-      const latestVersion = await fetchGitHubLatestVersion(currentVersion.repository);
+      const latestVersion = await fetchGitHubLatestVersion(
+        currentVersion.repository,
+        currentVersion.updateBranch || 'main'
+      );
 
       const hasUpdate = compareVersions(latestVersion.version, currentVersion.version) > 0;
 
@@ -121,7 +163,8 @@ router.get('/check-update', async (req, res) => {
         current: currentVersion.version,
         latest: latestVersion.version,
         hasUpdate,
-        updateInfo: hasUpdate ? latestVersion : null
+        updateInfo: hasUpdate ? latestVersion : null,
+        updateType: latestVersion.type // 'release' 或 'commit'
       });
     } catch (error) {
       console.error('检查 GitHub 更新失败:', error);

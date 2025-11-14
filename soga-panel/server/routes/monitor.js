@@ -1,7 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { SSHConnection } = require('../services/ssh');
-const { readData } = require('../utils/data-handler');
+const fs = require('fs').promises;
+const path = require('path');
+
+const DATA_FILE = path.join(__dirname, '../../data/servers.json');
+
+// 读取数据
+const readData = async () => {
+    const data = await fs.readFile(DATA_FILE, 'utf8');
+    return JSON.parse(data);
+};
 
 // 获取服务器监控数据
 router.get('/:serverId/stats', async (req, res) => {
