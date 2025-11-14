@@ -1005,6 +1005,57 @@ footer {
     text-align: right;
 }
 
+.stat-network {
+    flex: 1;
+    display: flex;
+    gap: 20px;
+}
+
+.stat-network-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.network-label {
+    font-size: 16px;
+    font-weight: bold;
+    opacity: 0.9;
+}
+
+.network-value {
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+.server-details {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #f0f0f0;
+    animation: slideDown 0.2s ease;
+}
+
+.server-details-toggle {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.server-details-toggle:hover {
+    background: #f5f5f5;
+    color: var(--primary-color);
+}
+
+.toggle-icon {
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
 .chart-container {
     background: white;
     border-radius: 8px;

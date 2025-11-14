@@ -719,7 +719,13 @@ function renderServers() {
     elements.serversList.innerHTML = state.servers.map(server => `
         <div class="card">
             <div class="card-header">
-                <div class="card-title">🖥️ ${server.name}</div>
+                <div class="card-title">
+                    🖥️ ${server.name}
+                    <span style="color: #999; font-size: 12px; font-weight: normal; margin-left: 8px;">${server.host}</span>
+                </div>
+                <button class="server-details-toggle" onclick="toggleServerDetails('${server.id}')" title="显示/隐藏详细信息">
+                    <span class="toggle-icon">▼</span>
+                </button>
             </div>
             <div class="card-body">
                 <div class="server-monitor" id="monitor-${server.id}">
@@ -745,31 +751,55 @@ function renderServers() {
                             </div>
                             <div class="stat-value">--</div>
                         </div>
+                        <div class="stat-item">
+                            <div class="stat-label">网络</div>
+                            <div class="stat-network">
+                                <div class="stat-network-item">
+                                    <span class="network-label">↓</span>
+                                    <span class="network-value">-- KB/s</span>
+                                </div>
+                                <div class="stat-network-item">
+                                    <span class="network-label">↑</span>
+                                    <span class="network-value">-- KB/s</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">累计流量</div>
+                            <div class="stat-network">
+                                <div class="stat-network-item">
+                                    <span class="network-label">↓</span>
+                                    <span class="network-value">-- GB</span>
+                                </div>
+                                <div class="stat-network-item">
+                                    <span class="network-label">↑</span>
+                                    <span class="network-value">-- GB</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <button class="btn btn-sm btn-primary" onclick="showMonitorChart('${server.id}', '${server.name}')" style="margin-top: 10px; width: 100%;">
                         📊 查看详细图表
                     </button>
                 </div>
-                <div class="card-info">
-                    <div class="card-info-item">
-                        <span class="card-info-label">IP 地址:</span>
-                        <span class="card-info-value">${server.host}</span>
-                    </div>
-                    <div class="card-info-item">
-                        <span class="card-info-label">端口:</span>
-                        <span class="card-info-value">${server.port}</span>
-                    </div>
-                    <div class="card-info-item">
-                        <span class="card-info-label">用户名:</span>
-                        <span class="card-info-value">${server.username}</span>
-                    </div>
-                    <div class="card-info-item">
-                        <span class="card-info-label">SSH 连接:</span>
-                        <span class="card-info-value" style="font-family: monospace; font-size: 12px;">ssh ${server.username}@${server.host} -p ${server.port}</span>
-                    </div>
-                    <div class="card-info-item">
-                        <span class="card-info-label">添加时间:</span>
-                        <span class="card-info-value">${formatDate(server.createdAt)}</span>
+                <div class="server-details" id="details-${server.id}" style="display: none;">
+                    <div class="card-info">
+                        <div class="card-info-item">
+                            <span class="card-info-label">端口:</span>
+                            <span class="card-info-value">${server.port}</span>
+                        </div>
+                        <div class="card-info-item">
+                            <span class="card-info-label">用户名:</span>
+                            <span class="card-info-value">${server.username}</span>
+                        </div>
+                        <div class="card-info-item">
+                            <span class="card-info-label">SSH 连接:</span>
+                            <span class="card-info-value" style="font-family: monospace; font-size: 12px;">ssh ${server.username}@${server.host} -p ${server.port}</span>
+                        </div>
+                        <div class="card-info-item">
+                            <span class="card-info-label">添加时间:</span>
+                            <span class="card-info-value">${formatDate(server.createdAt)}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -806,6 +836,21 @@ async function handleAddServer(e) {
         loadServers();
     } catch (error) {
         // Error already handled in apiCall
+    }
+}
+
+// 切换服务器详细信息显示
+function toggleServerDetails(serverId) {
+    const detailsEl = document.getElementById(`details-${serverId}`);
+    const toggleBtn = event.currentTarget;
+    const toggleIcon = toggleBtn.querySelector('.toggle-icon');
+
+    if (detailsEl.style.display === 'none') {
+        detailsEl.style.display = 'block';
+        toggleIcon.textContent = '▲';
+    } else {
+        detailsEl.style.display = 'none';
+        toggleIcon.textContent = '▼';
     }
 }
 
@@ -1931,6 +1976,20 @@ function updateMonitorDisplay(serverId, stats) {
     diskBar.style.width = `${stats.disk.usage}%`;
     diskBar.style.backgroundColor = getColorForUsage(stats.disk.usage);
     diskValue.textContent = `${stats.disk.usage}% (${stats.disk.used}/${stats.disk.total})`;
+
+    // 网络吞吐量
+    if (stats.network && statItems[3]) {
+        const networkValues = statItems[3].querySelectorAll('.network-value');
+        if (networkValues[0]) networkValues[0].textContent = `${stats.network.rxSpeed} KB/s`;
+        if (networkValues[1]) networkValues[1].textContent = `${stats.network.txSpeed} KB/s`;
+    }
+
+    // 累计流量
+    if (stats.network && statItems[4]) {
+        const trafficValues = statItems[4].querySelectorAll('.network-value');
+        if (trafficValues[0]) trafficValues[0].textContent = `${stats.network.rxTotal} GB`;
+        if (trafficValues[1]) trafficValues[1].textContent = `${stats.network.txTotal} GB`;
+    }
 }
 
 // 根据使用率获取颜色

@@ -61,6 +61,29 @@ router.get('/:serverId/stats', async (req, res) => {
             const uptimeResult = await ssh.execCommand(uptimeCommand);
             const uptime = uptimeResult.stdout.trim();
 
+            // 获取网络流量统计 (第一次采样)
+            const netCommand1 = `cat /proc/net/dev | grep -E 'eth0|ens|enp' | head -1 | awk '{print $2, $10}'`;
+            const netResult1 = await ssh.execCommand(netCommand1);
+            const netParts1 = netResult1.stdout.trim().split(' ');
+            const rxBytes1 = parseFloat(netParts1[0]) || 0;
+            const txBytes1 = parseFloat(netParts1[1]) || 0;
+
+            // 等待1秒后再次采样以计算速度
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const netResult2 = await ssh.execCommand(netCommand1);
+            const netParts2 = netResult2.stdout.trim().split(' ');
+            const rxBytes2 = parseFloat(netParts2[0]) || 0;
+            const txBytes2 = parseFloat(netParts2[1]) || 0;
+
+            // 计算每秒速度 (KB/s)
+            const rxSpeed = Math.round((rxBytes2 - rxBytes1) / 1024 * 10) / 10;
+            const txSpeed = Math.round((txBytes2 - txBytes1) / 1024 * 10) / 10;
+
+            // 累计流量 (GB)
+            const rxTotal = Math.round(rxBytes2 / 1024 / 1024 / 1024 * 100) / 100;
+            const txTotal = Math.round(txBytes2 / 1024 / 1024 / 1024 * 100) / 100;
+
             ssh.dispose();
 
             res.json({
@@ -78,6 +101,12 @@ router.get('/:serverId/stats', async (req, res) => {
                         usage: Math.round(diskUsage * 10) / 10,
                         used: diskUsed,
                         total: diskTotal
+                    },
+                    network: {
+                        rxSpeed,  // 下载速度 KB/s
+                        txSpeed,  // 上传速度 KB/s
+                        rxTotal,  // 累计下载 GB
+                        txTotal   // 累计上传 GB
                     },
                     load: {
                         load1: Math.round(load1 * 100) / 100,
