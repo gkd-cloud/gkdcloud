@@ -2332,6 +2332,7 @@ function loadTemplateToForm(templateId, closeTemplateManager = false) {
     // 基础配置
     if (config.panelType) form.querySelector('[name="panelType"]').value = config.panelType;
     if (config.serverType) form.querySelector('[name="serverType"]').value = config.serverType;
+    if (config.sogaKey) form.querySelector('[name="sogaKey"]').value = config.sogaKey;
     if (config.panelUrl) form.querySelector('[name="panelUrl"]').value = config.panelUrl;
     if (config.panelKey) form.querySelector('[name="panelKey"]').value = config.panelKey;
 
@@ -2398,6 +2399,7 @@ function editTemplate(templateId) {
     const config = template.config;
     if (config.panelType) form.querySelector('[name="panelType"]').value = config.panelType;
     if (config.serverType) form.querySelector('[name="serverType"]').value = config.serverType;
+    if (config.sogaKey) form.querySelector('[name="sogaKey"]').value = config.sogaKey;
     if (config.panelUrl) form.querySelector('[name="panelUrl"]').value = config.panelUrl;
     if (config.panelKey) form.querySelector('[name="panelKey"]').value = config.panelKey;
 
@@ -2467,6 +2469,7 @@ function initTemplateManagement() {
                 config: {
                     panelType: formData.get('panelType'),
                     serverType: formData.get('serverType'),
+                    sogaKey: formData.get('sogaKey'),
                     panelUrl: formData.get('panelUrl'),
                     panelKey: formData.get('panelKey')
                 }
@@ -2530,6 +2533,7 @@ function initTemplateManagement() {
                 config: {
                     panelType: formData.get('panelType'),
                     serverType: formData.get('serverType'),
+                    sogaKey: formData.get('sogaKey'),
                     panelUrl: formData.get('panelUrl'),
                     panelKey: formData.get('panelKey'),
                     dbHost: formData.get('dbHost'),
@@ -2591,6 +2595,7 @@ function initTemplateManagement() {
                 config: {
                     panelType: formData.get('panelType'),
                     serverType: formData.get('serverType'),
+                    sogaKey: formData.get('sogaKey'),
                     panelUrl: formData.get('panelUrl'),
                     panelKey: formData.get('panelKey'),
                     dbHost: formData.get('dbHost'),
