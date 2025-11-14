@@ -60,6 +60,115 @@ router.get('/instances', async (req, res) => {
   }
 });
 
+// ==================== 离线包管理 ====================
+// 注意：这些路由必须在 /:serverId/:instanceName 之前定义，避免路由冲突
+
+// 获取所有离线包
+router.get('/packages', async (req, res) => {
+  try {
+    const packages = await readPackages();
+    res.json({ success: true, packages });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 上传离线包并保存
+router.post('/packages', async (req, res) => {
+  try {
+    const { name, arch, fileBase64, description } = req.body;
+
+    if (!name || !arch || !fileBase64) {
+      return res.status(400).json({ error: '缺少必要参数' });
+    }
+
+    // 检查名称是否已存在
+    const packages = await readPackages();
+    if (packages.some(p => p.name === name)) {
+      return res.status(400).json({ error: '该名称的离线包已存在' });
+    }
+
+    // 保存文件
+    const fileBuffer = Buffer.from(fileBase64, 'base64');
+    const fileName = `${name}-${arch}-${Date.now()}.tar.gz`;
+    const filePath = path.join(PACKAGES_DIR, fileName);
+
+    await fs.writeFile(filePath, fileBuffer);
+
+    // 添加到索引
+    const packageInfo = {
+      id: Date.now().toString(),
+      name,
+      arch,
+      fileName,
+      size: fileBuffer.length,
+      description: description || '',
+      createdAt: new Date().toISOString()
+    };
+
+    packages.push(packageInfo);
+    await writePackages(packages);
+
+    res.json({ success: true, package: packageInfo });
+  } catch (error) {
+    console.error('上传离线包失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 删除离线包
+router.delete('/packages/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const packages = await readPackages();
+
+    const index = packages.findIndex(p => p.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: '离线包不存在' });
+    }
+
+    const pkg = packages[index];
+
+    // 删除文件
+    try {
+      await fs.unlink(path.join(PACKAGES_DIR, pkg.fileName));
+    } catch (error) {
+      console.warn('删除文件失败:', error.message);
+    }
+
+    // 从索引中删除
+    packages.splice(index, 1);
+    await writePackages(packages);
+
+    res.json({ success: true, message: '离线包删除成功' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取离线包文件内容（用于安装）
+router.get('/packages/:id/content', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const packages = await readPackages();
+
+    const pkg = packages.find(p => p.id === id);
+    if (!pkg) {
+      return res.status(404).json({ error: '离线包不存在' });
+    }
+
+    const filePath = path.join(PACKAGES_DIR, pkg.fileName);
+    const fileBuffer = await fs.readFile(filePath);
+    const base64Content = fileBuffer.toString('base64');
+
+    res.json({ success: true, content: base64Content });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== Soga 实例管理 ====================
+
 // 安装 Soga 实例
 router.post('/install', async (req, res) => {
   try {
@@ -323,112 +432,6 @@ router.delete('/:serverId/:instanceName', async (req, res) => {
     } else {
       res.status(404).json({ error: '实例不存在' });
     }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==================== 离线包管理 ====================
-
-// 获取所有离线包
-router.get('/packages', async (req, res) => {
-  try {
-    const packages = await readPackages();
-    res.json({ success: true, packages });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 上传离线包并保存
-router.post('/packages', async (req, res) => {
-  try {
-    const { name, arch, fileBase64, description } = req.body;
-
-    if (!name || !arch || !fileBase64) {
-      return res.status(400).json({ error: '缺少必要参数' });
-    }
-
-    // 检查名称是否已存在
-    const packages = await readPackages();
-    if (packages.some(p => p.name === name)) {
-      return res.status(400).json({ error: '该名称的离线包已存在' });
-    }
-
-    // 保存文件
-    const fileBuffer = Buffer.from(fileBase64, 'base64');
-    const fileName = `${name}-${arch}-${Date.now()}.tar.gz`;
-    const filePath = path.join(PACKAGES_DIR, fileName);
-
-    await fs.writeFile(filePath, fileBuffer);
-
-    // 添加到索引
-    const packageInfo = {
-      id: Date.now().toString(),
-      name,
-      arch,
-      fileName,
-      size: fileBuffer.length,
-      description: description || '',
-      createdAt: new Date().toISOString()
-    };
-
-    packages.push(packageInfo);
-    await writePackages(packages);
-
-    res.json({ success: true, package: packageInfo });
-  } catch (error) {
-    console.error('上传离线包失败:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 删除离线包
-router.delete('/packages/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const packages = await readPackages();
-
-    const index = packages.findIndex(p => p.id === id);
-    if (index === -1) {
-      return res.status(404).json({ error: '离线包不存在' });
-    }
-
-    const pkg = packages[index];
-
-    // 删除文件
-    try {
-      await fs.unlink(path.join(PACKAGES_DIR, pkg.fileName));
-    } catch (error) {
-      console.warn('删除文件失败:', error.message);
-    }
-
-    // 从索引中删除
-    packages.splice(index, 1);
-    await writePackages(packages);
-
-    res.json({ success: true, message: '离线包删除成功' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 获取离线包文件内容（用于安装）
-router.get('/packages/:id/content', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const packages = await readPackages();
-
-    const pkg = packages.find(p => p.id === id);
-    if (!pkg) {
-      return res.status(404).json({ error: '离线包不存在' });
-    }
-
-    const filePath = path.join(PACKAGES_DIR, pkg.fileName);
-    const fileBuffer = await fs.readFile(filePath);
-    const base64Content = fileBuffer.toString('base64');
-
-    res.json({ success: true, content: base64Content });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
