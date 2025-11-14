@@ -133,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initLogout();
     initVersionCheck();
     initTemplateManagement(); // 添加模板管理初始化
+    initEnhancedEditors(); // 添加高级编辑器初始化
     loadServers();
     loadInstances();
     loadPackages();
@@ -1955,6 +1956,258 @@ function changeMonitorDuration(duration) {
     }
 }
 
+// ==================== 高级编辑器 ====================
+
+// 为 textarea 添加高级编辑功能
+function enhanceTextarea(textarea, options = {}) {
+    const {
+        format = 'toml', // toml, json, text
+        showLineNumbers = false,
+        enableFormat = true,
+        enableValidation = true
+    } = options;
+
+    // 创建包装容器
+    const wrapper = document.createElement('div');
+    wrapper.className = 'enhanced-editor';
+    textarea.parentNode.insertBefore(wrapper, textarea);
+    wrapper.appendChild(textarea);
+
+    // 添加工具栏
+    if (enableFormat || enableValidation) {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'editor-toolbar';
+
+        if (enableFormat) {
+            const formatBtn = document.createElement('button');
+            formatBtn.type = 'button';
+            formatBtn.className = 'btn btn-sm btn-secondary';
+            formatBtn.innerHTML = '✨ 格式化';
+            formatBtn.onclick = () => formatTextarea(textarea, format);
+            toolbar.appendChild(formatBtn);
+        }
+
+        if (enableValidation) {
+            const validateBtn = document.createElement('button');
+            validateBtn.type = 'button';
+            validateBtn.className = 'btn btn-sm btn-secondary';
+            validateBtn.innerHTML = '✓ 验证';
+            validateBtn.onclick = () => validateTextarea(textarea, format);
+            toolbar.appendChild(validateBtn);
+        }
+
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'btn btn-sm btn-secondary';
+        clearBtn.innerHTML = '🗑️ 清空';
+        clearBtn.onclick = () => {
+            if (confirm('确定要清空内容吗？')) {
+                textarea.value = '';
+            }
+        };
+        toolbar.appendChild(clearBtn);
+
+        wrapper.insertBefore(toolbar, textarea);
+    }
+
+    // 添加编辑器样式
+    textarea.classList.add('code-editor');
+}
+
+// 格式化 textarea 内容
+function formatTextarea(textarea, format) {
+    const content = textarea.value.trim();
+    if (!content) {
+        alert('内容为空，无需格式化');
+        return;
+    }
+
+    try {
+        let formatted;
+
+        if (format === 'json') {
+            // JSON 格式化
+            const obj = JSON.parse(content);
+            formatted = JSON.stringify(obj, null, 2);
+        } else if (format === 'toml') {
+            // TOML 基本格式化（简单处理）
+            formatted = formatToml(content);
+        } else {
+            // 文本格式：去除多余空行
+            formatted = content.split('\n')
+                .map(line => line.trimEnd())
+                .join('\n')
+                .replace(/\n{3,}/g, '\n\n');
+        }
+
+        textarea.value = formatted;
+        addApiLog(`${format.toUpperCase()} 格式化成功`, 'success');
+
+        // 闪烁效果
+        textarea.style.backgroundColor = '#d4edda';
+        setTimeout(() => {
+            textarea.style.backgroundColor = '';
+        }, 300);
+    } catch (error) {
+        alert(`格式化失败: ${error.message}`);
+        addApiLog(`格式化失败: ${error.message}`, 'error');
+    }
+}
+
+// 简单的 TOML 格式化
+function formatToml(content) {
+    const lines = content.split('\n');
+    const formatted = [];
+    let prevLineEmpty = false;
+
+    for (let line of lines) {
+        const trimmed = line.trim();
+
+        // 跳过连续的空行
+        if (trimmed === '') {
+            if (!prevLineEmpty) {
+                formatted.push('');
+                prevLineEmpty = true;
+            }
+            continue;
+        }
+
+        prevLineEmpty = false;
+
+        // 处理注释
+        if (trimmed.startsWith('#')) {
+            formatted.push(trimmed);
+            continue;
+        }
+
+        // 处理节（section）
+        if (trimmed.startsWith('[')) {
+            if (formatted.length > 0 && formatted[formatted.length - 1] !== '') {
+                formatted.push('');
+            }
+            formatted.push(trimmed);
+            continue;
+        }
+
+        // 处理键值对
+        if (trimmed.includes('=')) {
+            const [key, ...valueParts] = trimmed.split('=');
+            const value = valueParts.join('=').trim();
+            formatted.push(`${key.trim()} = ${value}`);
+            continue;
+        }
+
+        // 其他行保持原样
+        formatted.push(trimmed);
+    }
+
+    return formatted.join('\n');
+}
+
+// 验证 textarea 内容
+function validateTextarea(textarea, format) {
+    const content = textarea.value.trim();
+
+    if (!content) {
+        alert('内容为空');
+        return;
+    }
+
+    try {
+        if (format === 'json') {
+            JSON.parse(content);
+            alert('✓ JSON 格式正确');
+            addApiLog('JSON 验证通过', 'success');
+        } else if (format === 'toml') {
+            // TOML 基本验证
+            const valid = validateToml(content);
+            if (valid) {
+                alert('✓ TOML 格式看起来正确');
+                addApiLog('TOML 验证通过', 'success');
+            }
+        } else {
+            alert('✓ 内容不为空');
+        }
+
+        textarea.style.borderColor = '#28a745';
+        setTimeout(() => {
+            textarea.style.borderColor = '';
+        }, 1000);
+    } catch (error) {
+        alert(`✗ 格式错误:\n${error.message}`);
+        addApiLog(`验证失败: ${error.message}`, 'error');
+        textarea.style.borderColor = '#dc3545';
+    }
+}
+
+// 简单的 TOML 验证
+function validateToml(content) {
+    const lines = content.split('\n');
+    let inSection = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        if (line === '' || line.startsWith('#')) {
+            continue;
+        }
+
+        // 检查节
+        if (line.startsWith('[')) {
+            if (!line.endsWith(']')) {
+                throw new Error(`第 ${i + 1} 行: 节定义不完整 - ${line}`);
+            }
+            inSection = true;
+            continue;
+        }
+
+        // 检查键值对
+        if (line.includes('=')) {
+            const parts = line.split('=');
+            if (parts.length < 2) {
+                throw new Error(`第 ${i + 1} 行: 键值对格式错误 - ${line}`);
+            }
+            const key = parts[0].trim();
+            if (!key) {
+                throw new Error(`第 ${i + 1} 行: 键名为空 - ${line}`);
+            }
+            continue;
+        }
+
+        // 其他格式可能有问题，但不严格报错
+        console.warn(`第 ${i + 1} 行: 可能的格式问题 - ${line}`);
+    }
+
+    return true;
+}
+
+// 初始化所有增强编辑器
+function initEnhancedEditors() {
+    // 创建实例表单中的路由配置
+    const createInstanceRouteConfig = document.querySelector('#create-instance-form textarea[name="routeConfig"]');
+    if (createInstanceRouteConfig) {
+        enhanceTextarea(createInstanceRouteConfig, { format: 'toml', enableFormat: true, enableValidation: true });
+    }
+
+    const createInstanceBlockList = document.querySelector('#create-instance-form textarea[name="blockList"]');
+    if (createInstanceBlockList) {
+        enhanceTextarea(createInstanceBlockList, { format: 'text', enableFormat: true, enableValidation: false });
+    }
+
+    // 路由配置模板表单
+    const routeConfigForm = document.querySelector('#add-route-config-form textarea[name="routeConfig"]');
+    if (routeConfigForm) {
+        enhanceTextarea(routeConfigForm, { format: 'toml', enableFormat: true, enableValidation: true });
+    }
+
+    const routeConfigBlockList = document.querySelector('#add-route-config-form textarea[name="blockList"]');
+    if (routeConfigBlockList) {
+        enhanceTextarea(routeConfigBlockList, { format: 'text', enableFormat: true, enableValidation: false });
+    }
+
+    addApiLog('高级编辑器初始化完成', 'info');
+}
+
 // ==================== 模板管理 ====================
 
 // 添加模板列表到状态
@@ -2257,10 +2510,73 @@ function initTemplateManagement() {
         });
     }
 
-    // 保存为模板并创建按钮
-    const saveAsTemplateBtn = document.getElementById('save-as-template-btn');
-    if (saveAsTemplateBtn) {
-        saveAsTemplateBtn.addEventListener('click', async (e) => {
+    // 仅保存模板按钮（不创建实例）
+    const saveTemplateOnlyBtn = document.getElementById('save-template-only-btn');
+    if (saveTemplateOnlyBtn) {
+        saveTemplateOnlyBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const templateName = prompt('请输入模板名称:');
+            if (!templateName) return;
+
+            const form = elements.createInstanceForm;
+            const formData = new FormData(form);
+
+            const templateData = {
+                name: templateName,
+                description: formData.get('instanceName') ?
+                    `基于实例配置 ${formData.get('instanceName')} 创建` :
+                    '手动创建的配置模板',
+                config: {
+                    panelType: formData.get('panelType'),
+                    serverType: formData.get('serverType'),
+                    panelUrl: formData.get('panelUrl'),
+                    panelKey: formData.get('panelKey'),
+                    dbHost: formData.get('dbHost'),
+                    dbPort: formData.get('dbPort'),
+                    dbName: formData.get('dbName'),
+                    dbUser: formData.get('dbUser'),
+                    dbPassword: formData.get('dbPassword'),
+                    logLevel: formData.get('logLevel'),
+                    logFile: formData.get('logFile'),
+                    checkInterval: formData.get('checkInterval'),
+                    userConnLimit: formData.get('userConnLimit'),
+                    userSpeedLimit: formData.get('userSpeedLimit'),
+                    enableDNS: formData.get('enableDNS') === 'on',
+                    defaultDns: formData.get('defaultDns'),
+                    dnsCacheTime: formData.get('dnsCacheTime'),
+                    dnsStrategy: formData.get('dnsStrategy'),
+                    dnsType: formData.get('dnsType'),
+                    dnsListenPort: formData.get('dnsListenPort'),
+                    routeConfig: formData.get('routeConfig'),
+                    blockList: formData.get('blockList'),
+                    enableProxyProtocol: formData.get('enableProxyProtocol') === 'on'
+                }
+            };
+
+            try {
+                await apiCall('/templates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(templateData)
+                });
+
+                addApiLog(`模板 ${templateName} 保存成功`, 'success');
+                alert(`✓ 模板"${templateName}"保存成功！\n\n您可以在"模板管理"中查看和使用此模板。`);
+
+                // 刷新模板列表
+                loadTemplates();
+            } catch (error) {
+                console.error('保存模板失败:', error);
+                addApiLog(`保存模板失败: ${error.message}`, 'error');
+            }
+        });
+    }
+
+    // 保存模板并创建实例按钮
+    const saveTemplateAndCreateBtn = document.getElementById('save-template-and-create-btn');
+    if (saveTemplateAndCreateBtn) {
+        saveTemplateAndCreateBtn.addEventListener('click', async (e) => {
             e.preventDefault();
 
             const templateName = prompt('请输入模板名称:');
@@ -2307,7 +2623,10 @@ function initTemplateManagement() {
                 });
 
                 addApiLog(`模板 ${templateName} 保存成功`, 'success');
-                alert(`模板"${templateName}"保存成功！\n即将创建实例...`);
+                alert(`✓ 模板"${templateName}"保存成功！\n即将创建实例...`);
+
+                // 刷新模板列表
+                loadTemplates();
 
                 // 继续提交创建实例表单
                 form.requestSubmit();
