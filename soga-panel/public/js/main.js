@@ -231,7 +231,14 @@ const state = {
     routeConfigs: [],
     currentPage: 'servers',
     currentView: 'grid', // grid or list
-    currentSize: 'medium', // small, medium, large
+    currentSize: 'auto', // small, medium, large, auto
+    // 每个页面独立的大小设置
+    pageSizes: {
+        servers: 'auto',
+        instances: 'auto',
+        packages: 'auto',
+        routes: 'auto'
+    },
     currentServer: null,
     currentInstance: null,
     currentDiagnose: null
@@ -280,6 +287,17 @@ const elements = {
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+    // 从 localStorage 加载页面大小设置
+    try {
+        const savedSizes = localStorage.getItem('pageSizes');
+        if (savedSizes) {
+            const parsedSizes = JSON.parse(savedSizes);
+            state.pageSizes = { ...state.pageSizes, ...parsedSizes };
+        }
+    } catch (e) {
+        console.warn('无法从 localStorage 加载大小设置:', e);
+    }
+
     initNavigation();
     initViewSwitcher();
     initSizeSwitcher();
@@ -294,6 +312,11 @@ document.addEventListener('DOMContentLoaded', () => {
     loadInstances();
     loadPackages();
     loadRouteConfigs();
+
+    // 应用当前页面的大小设置
+    if (state.pageSizes[state.currentPage]) {
+        switchSize(state.pageSizes[state.currentPage], false);
+    }
 });
 
 // ==================== 导航系统 ====================
@@ -331,6 +354,11 @@ function switchPage(page) {
 
     if (elements.pageTitle) {
         elements.pageTitle.textContent = pageTitles[page] || '';
+    }
+
+    // 恢复该页面的大小设置
+    if (state.pageSizes[page]) {
+        switchSize(state.pageSizes[page], false);
     }
 
     addApiLog(`切换到页面: ${pageTitles[page]}`, 'info');
@@ -380,8 +408,11 @@ function initSizeSwitcher() {
     });
 }
 
-function switchSize(size) {
+function switchSize(size, saveToStorage = true) {
     state.currentSize = size;
+
+    // 保存当前页面的大小设置
+    state.pageSizes[state.currentPage] = size;
 
     // 更新尺寸按钮激活状态
     elements.sizeBtns.forEach(btn => {
@@ -390,11 +421,20 @@ function switchSize(size) {
 
     // 更新所有卡片容器的尺寸类
     document.querySelectorAll('.cards-container').forEach(container => {
-        container.classList.remove('size-small', 'size-medium', 'size-large');
+        container.classList.remove('size-small', 'size-medium', 'size-large', 'size-auto');
         container.classList.add(`size-${size}`);
     });
 
-    const sizeNames = { 'small': '小', 'medium': '中', 'large': '大' };
+    // 保存到 localStorage
+    if (saveToStorage) {
+        try {
+            localStorage.setItem('pageSizes', JSON.stringify(state.pageSizes));
+        } catch (e) {
+            console.warn('无法保存大小设置到 localStorage:', e);
+        }
+    }
+
+    const sizeNames = { 'small': '小', 'medium': '中', 'large': '大', 'auto': '自适应' };
     addApiLog(`切换尺寸: ${sizeNames[size]}`, 'info');
 }
 
