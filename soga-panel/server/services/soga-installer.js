@@ -120,23 +120,13 @@ class SogaInstaller {
       try {
         this.log(`尝试从 ${source.name} 下载...`, 'info');
 
-        // 测试连接
-        const hostname = new URL(source.url).hostname;
-        const testResult = await this.ssh.execCommand(`curl -I https://${hostname} --connect-timeout 5`);
-
-        if (testResult.code !== 0) {
-          this.log(`${source.name} 连接失败，尝试下一个源...`, 'warning');
-          continue;
-        }
-
-        this.log(`${source.name} 连接正常，开始下载...`, 'success');
-
+        // 直接尝试下载，不再预先测试连接
         // 下载并解压 tar.gz 包（参考官方脚本）
-        this.log('=== 步骤1: 下载并解压 ===', 'info');
+        this.log('开始下载并解压...', 'info');
         const downloadCmd = `
           cd /usr/local && \\
           rm -f soga.tar.gz soga && \\
-          wget -N --no-check-certificate -O soga.tar.gz "${source.url}" 2>&1 && \\
+          wget --timeout=30 --tries=2 -N --no-check-certificate -O soga.tar.gz "${source.url}" 2>&1 && \\
           echo "下载完成，开始解压..." && \\
           tar zxvf soga.tar.gz 2>&1 && \\
           echo "解压完成，检查文件结构..." && \\
