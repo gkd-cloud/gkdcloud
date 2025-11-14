@@ -72,7 +72,10 @@ const state = {
     servers: [],
     instances: [],
     packages: [],
-    currentTab: 'servers',
+    routeConfigs: [],
+    currentPage: 'servers',
+    currentView: 'grid', // grid or list
+    currentSize: 'medium', // small, medium, large
     currentServer: null,
     currentInstance: null,
     currentDiagnose: null
@@ -80,21 +83,36 @@ const state = {
 
 // DOM 元素
 const elements = {
-    tabBtns: document.querySelectorAll('.tab-btn'),
+    // 导航
+    navItems: document.querySelectorAll('.nav-item'),
+    pageTitle: document.getElementById('page-title'),
+    logoutBtn: document.getElementById('logout-btn'),
+    // 视图控制
+    viewBtns: document.querySelectorAll('.view-btn'),
+    sizeBtns: document.querySelectorAll('.size-btn'),
+    sizeSwitcher: document.getElementById('size-switcher'),
+    // 列表容器
     serversList: document.getElementById('servers-list'),
     instancesList: document.getElementById('instances-list'),
     packagesList: document.getElementById('packages-list'),
+    routesList: document.getElementById('routes-list'),
+    // 按钮
     addServerBtn: document.getElementById('add-server-btn'),
+    createInstanceBtn: document.getElementById('create-instance-btn'),
+    uploadPackageBtn: document.getElementById('upload-package-btn'),
+    addRouteConfigBtn: document.getElementById('add-route-config-btn'),
+    // 模态框
     addServerModal: document.getElementById('add-server-modal'),
     addServerForm: document.getElementById('add-server-form'),
-    createInstanceBtn: document.getElementById('create-instance-btn'),
     createInstanceModal: document.getElementById('create-instance-modal'),
     createInstanceForm: document.getElementById('create-instance-form'),
-    uploadPackageBtn: document.getElementById('upload-package-btn'),
     uploadPackageModal: document.getElementById('upload-package-modal'),
     uploadPackageForm: document.getElementById('upload-package-form'),
+    addRouteConfigModal: document.getElementById('add-route-config-modal'),
+    addRouteConfigForm: document.getElementById('add-route-config-form'),
     logsModal: document.getElementById('logs-modal'),
     diagnoseModal: document.getElementById('diagnose-modal'),
+    // 表单控件
     authTypeSelect: document.getElementById('auth-type'),
     passwordGroup: document.getElementById('password-group'),
     keyGroup: document.getElementById('key-group')
@@ -102,36 +120,165 @@ const elements = {
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
-    initTabs();
+    initNavigation();
+    initViewSwitcher();
+    initSizeSwitcher();
     initModals();
     initAuthTypeSwitch();
     initInstallModeSwitch();
+    initLogout();
     loadServers();
     loadInstances();
     loadPackages();
+    loadRouteConfigs();
 });
 
-// 标签页切换
-function initTabs() {
-    elements.tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tab = btn.dataset.tab;
-            switchTab(tab);
+// ==================== 导航系统 ====================
+
+function initNavigation() {
+    elements.navItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const page = item.dataset.page;
+            switchPage(page);
         });
     });
 }
 
-function switchTab(tab) {
-    state.currentTab = tab;
-    
-    elements.tabBtns.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tab);
+function switchPage(page) {
+    state.currentPage = page;
+
+    // 更新导航激活状态
+    elements.navItems.forEach(item => {
+        item.classList.toggle('active', item.dataset.page === page);
     });
-    
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.toggle('active', content.id === `${tab}-tab`);
+
+    // 更新页面内容显示
+    document.querySelectorAll('.page-content').forEach(content => {
+        content.classList.toggle('active', content.id === `${page}-page`);
+    });
+
+    // 更新页面标题
+    const pageTitles = {
+        'servers': '服务器管理',
+        'instances': '实例管理',
+        'packages': '离线包管理',
+        'routes': '路由配置'
+    };
+
+    if (elements.pageTitle) {
+        elements.pageTitle.textContent = pageTitles[page] || '';
+    }
+
+    addApiLog(`切换到页面: ${pageTitles[page]}`, 'info');
+}
+
+// ==================== 视图切换 ====================
+
+function initViewSwitcher() {
+    elements.viewBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+            switchView(view);
+        });
     });
 }
+
+function switchView(view) {
+    state.currentView = view;
+
+    // 更新视图按钮激活状态
+    elements.viewBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+
+    // 更新所有卡片容器的视图类
+    document.querySelectorAll('.cards-container').forEach(container => {
+        container.classList.remove('view-grid', 'view-list');
+        container.classList.add(`view-${view}`);
+    });
+
+    // 列表视图时隐藏尺寸切换器
+    if (elements.sizeSwitcher) {
+        elements.sizeSwitcher.style.display = view === 'grid' ? 'flex' : 'none';
+    }
+
+    addApiLog(`切换视图: ${view === 'grid' ? '方块视图' : '列表视图'}`, 'info');
+}
+
+// ==================== 尺寸切换 ====================
+
+function initSizeSwitcher() {
+    elements.sizeBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const size = btn.dataset.size;
+            switchSize(size);
+        });
+    });
+}
+
+function switchSize(size) {
+    state.currentSize = size;
+
+    // 更新尺寸按钮激活状态
+    elements.sizeBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.size === size);
+    });
+
+    // 更新所有卡片容器的尺寸类
+    document.querySelectorAll('.cards-container').forEach(container => {
+        container.classList.remove('size-small', 'size-medium', 'size-large');
+        container.classList.add(`size-${size}`);
+    });
+
+    const sizeNames = { 'small': '小', 'medium': '中', 'large': '大' };
+    addApiLog(`切换尺寸: ${sizeNames[size]}`, 'info');
+}
+
+// ==================== 登出功能 ====================
+
+function initLogout() {
+    if (elements.logoutBtn) {
+        elements.logoutBtn.addEventListener('click', handleLogout);
+    }
+}
+
+function handleLogout() {
+    if (confirm('确定要退出登录吗？')) {
+        localStorage.removeItem('authToken');
+        addApiLog('用户已登出', 'info');
+        window.location.href = '/login.html';
+    }
+}
+
+// ==================== 下拉菜单功能 ====================
+
+function toggleDropdown(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const dropdown = event.target.closest('.dropdown');
+    const isOpen = dropdown.classList.contains('open');
+
+    // 关闭所有其他下拉菜单
+    document.querySelectorAll('.dropdown.open').forEach(d => {
+        d.classList.remove('open');
+    });
+
+    // 切换当前下拉菜单
+    if (!isOpen) {
+        dropdown.classList.add('open');
+    }
+}
+
+// 点击页面其他地方关闭所有下拉菜单
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown.open').forEach(d => {
+            d.classList.remove('open');
+        });
+    }
+});
 
 // 模态框管理
 function initModals() {
@@ -567,11 +714,18 @@ function renderInstances() {
                     </div>
                 </div>
                 <div class="card-actions">
-                    <button class="btn btn-success" onclick="startInstance('${instance.serverId}', '${instance.name}')">启动</button>
-                    <button class="btn btn-warning" onclick="stopInstance('${instance.serverId}', '${instance.name}')">停止</button>
-                    <button class="btn btn-info" onclick="restartInstance('${instance.serverId}', '${instance.name}')">重启</button>
-                    <button class="btn btn-secondary" onclick="viewLogs('${instance.serverId}', '${instance.name}')">日志</button>
-                    <button class="btn btn-danger" onclick="deleteInstance('${instance.serverId}', '${instance.name}')">删除</button>
+                    <div class="dropdown">
+                        <button class="dropdown-toggle" onclick="toggleDropdown(event)">
+                            操作
+                        </button>
+                        <div class="dropdown-menu">
+                            <button class="success" onclick="startInstance('${instance.serverId}', '${instance.name}')">▶️ 启动</button>
+                            <button class="warning" onclick="stopInstance('${instance.serverId}', '${instance.name}')">⏸️ 停止</button>
+                            <button class="info" onclick="restartInstance('${instance.serverId}', '${instance.name}')">🔄 重启</button>
+                            <button onclick="viewLogs('${instance.serverId}', '${instance.name}')">📋 查看日志</button>
+                            <button class="danger" onclick="deleteInstance('${instance.serverId}', '${instance.name}')">🗑️ 删除实例</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -1025,6 +1179,272 @@ function formatSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
     return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+// ==================== 路由配置管理 ====================
+
+// 加载路由配置列表
+async function loadRouteConfigs() {
+    try {
+        const data = await apiCall('/route-configs');
+        state.routeConfigs = data.configs || [];
+        renderRouteConfigs();
+        updateRouteConfigSelects();
+    } catch (error) {
+        // 如果是 404，说明还没有路由配置接口，使用本地存储
+        console.warn('路由配置API未实现，使用本地存储');
+        const savedConfigs = localStorage.getItem('routeConfigs');
+        state.routeConfigs = savedConfigs ? JSON.parse(savedConfigs) : [];
+        renderRouteConfigs();
+        updateRouteConfigSelects();
+    }
+}
+
+// 渲染路由配置列表
+function renderRouteConfigs() {
+    if (!elements.routesList) return;
+
+    if (state.routeConfigs.length === 0) {
+        elements.routesList.innerHTML = `
+            <div class="empty-state">
+                <h3>📋 还没有路由配置模板</h3>
+                <p>点击"添加路由配置"按钮来创建模板</p>
+                <p style="margin-top: 10px; color: #666; font-size: 0.9em;">
+                    路由配置模板可以让您在创建实例时快速选择预设的路由规则，<br>
+                    避免每次手动输入相同的配置
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    elements.routesList.innerHTML = state.routeConfigs.map(config => `
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <span class="card-title">${config.name}</span>
+                    ${config.isDefault ? '<span class="status-badge status-active">默认</span>' : ''}
+                </div>
+                <div class="card-actions">
+                    ${!config.isDefault ? `<button class="btn btn-sm btn-success" onclick="setDefaultRouteConfig('${config.id}')">设为默认</button>` : ''}
+                    <button class="btn btn-sm btn-secondary" onclick="viewRouteConfig('${config.id}')">查看</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteRouteConfig('${config.id}')">删除</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="card-info">
+                    ${config.description ? `
+                    <div class="card-info-item">
+                        <span class="card-info-label">描述:</span>
+                        <span class="card-info-value">${config.description}</span>
+                    </div>
+                    ` : ''}
+                    <div class="card-info-item">
+                        <span class="card-info-label">路由规则:</span>
+                        <span class="card-info-value">${config.routeConfig ? (config.routeConfig.length > 50 ? config.routeConfig.substring(0, 50) + '...' : config.routeConfig) : '未设置'}</span>
+                    </div>
+                    <div class="card-info-item">
+                        <span class="card-info-label">黑名单:</span>
+                        <span class="card-info-value">${config.blockList ? '已设置' : '未设置'}</span>
+                    </div>
+                    <div class="card-info-item">
+                        <span class="card-info-label">创建时间:</span>
+                        <span class="card-info-value">${formatDate(config.createdAt)}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 更新创建实例表单中的路由配置选择器
+function updateRouteConfigSelects() {
+    // 在创建实例表单的路由配置部分添加选择器
+    const routeConfigGroup = document.querySelector('textarea[name="routeConfig"]')?.closest('.form-group');
+    if (!routeConfigGroup) return;
+
+    // 检查是否已经添加了选择器
+    let selectWrapper = routeConfigGroup.querySelector('.route-config-selector');
+    if (!selectWrapper) {
+        selectWrapper = document.createElement('div');
+        selectWrapper.className = 'route-config-selector';
+        selectWrapper.style.marginBottom = '10px';
+        routeConfigGroup.insertBefore(selectWrapper, routeConfigGroup.firstChild.nextSibling);
+    }
+
+    const defaultConfig = state.routeConfigs.find(c => c.isDefault);
+
+    selectWrapper.innerHTML = `
+        <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #555;">快速选择模板</label>
+        <select id="route-config-template-select" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; margin-bottom: 5px;">
+            <option value="">不使用模板（手动输入）</option>
+            ${state.routeConfigs.map(config => `
+                <option value="${config.id}" ${config.isDefault ? 'selected' : ''}>
+                    ${config.name}${config.isDefault ? ' (默认)' : ''}
+                </option>
+            `).join('')}
+        </select>
+        <small style="display: block; margin-top: 5px; color: #999; font-size: 12px;">
+            选择预设模板后，路由规则和黑名单将自动填充（可修改）
+        </small>
+    `;
+
+    // 添加选择器事件监听
+    const templateSelect = document.getElementById('route-config-template-select');
+    if (templateSelect) {
+        templateSelect.addEventListener('change', (e) => {
+            const configId = e.target.value;
+            if (configId) {
+                const config = state.routeConfigs.find(c => c.id === configId);
+                if (config) {
+                    const routeTextarea = document.querySelector('textarea[name="routeConfig"]');
+                    const blockListTextarea = document.querySelector('textarea[name="blockList"]');
+                    if (routeTextarea) routeTextarea.value = config.routeConfig || '';
+                    if (blockListTextarea) blockListTextarea.value = config.blockList || '';
+                    addApiLog(`已加载路由配置模板: ${config.name}`, 'info');
+                }
+            }
+        });
+
+        // 如果有默认配置，自动加载
+        if (defaultConfig && !document.querySelector('textarea[name="routeConfig"]').value) {
+            templateSelect.value = defaultConfig.id;
+            templateSelect.dispatchEvent(new Event('change'));
+        }
+    }
+}
+
+// 添加路由配置按钮事件
+elements.addRouteConfigBtn?.addEventListener('click', () => {
+    elements.addRouteConfigModal.style.display = 'block';
+});
+
+// 取消按钮
+document.getElementById('cancel-route-config-btn')?.addEventListener('click', () => {
+    elements.addRouteConfigModal.style.display = 'none';
+    elements.addRouteConfigForm.reset();
+});
+
+// 提交路由配置表单
+elements.addRouteConfigForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+    const configData = {
+        id: Date.now().toString(),
+        name: formData.get('name'),
+        routeConfig: formData.get('routeConfig'),
+        blockList: formData.get('blockList') || '',
+        description: formData.get('description') || '',
+        isDefault: formData.get('isDefault') === 'on',
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        // 如果设为默认，取消其他配置的默认状态
+        if (configData.isDefault) {
+            state.routeConfigs.forEach(c => c.isDefault = false);
+        }
+
+        // 尝试调用 API
+        try {
+            await apiCall('/route-configs', {
+                method: 'POST',
+                body: JSON.stringify(configData)
+            });
+            addApiLog('路由配置保存成功', 'success');
+        } catch (error) {
+            // API 未实现，使用本地存储
+            console.warn('路由配置API未实现，保存到本地存储');
+            state.routeConfigs.push(configData);
+            localStorage.setItem('routeConfigs', JSON.stringify(state.routeConfigs));
+        }
+
+        alert('路由配置保存成功');
+        elements.addRouteConfigModal.style.display = 'none';
+        elements.addRouteConfigForm.reset();
+        loadRouteConfigs();
+    } catch (error) {
+        console.error('保存路由配置失败:', error);
+        addApiLog(`保存路由配置失败: ${error.message}`, 'error');
+    }
+});
+
+// 设置默认路由配置
+async function setDefaultRouteConfig(id) {
+    try {
+        // 取消所有配置的默认状态
+        state.routeConfigs.forEach(c => c.isDefault = false);
+        // 设置新的默认配置
+        const config = state.routeConfigs.find(c => c.id === id);
+        if (config) {
+            config.isDefault = true;
+        }
+
+        // 保存到本地存储
+        localStorage.setItem('routeConfigs', JSON.stringify(state.routeConfigs));
+
+        addApiLog(`已将 "${config.name}" 设为默认配置`, 'success');
+        alert('默认配置已更新');
+        loadRouteConfigs();
+    } catch (error) {
+        console.error('设置默认配置失败:', error);
+        addApiLog(`设置默认配置失败: ${error.message}`, 'error');
+    }
+}
+
+// 查看路由配置详情
+function viewRouteConfig(id) {
+    const config = state.routeConfigs.find(c => c.id === id);
+    if (!config) {
+        alert('配置不存在');
+        return;
+    }
+
+    const details = `
+路由配置: ${config.name}
+${config.isDefault ? '[默认配置]' : ''}
+
+描述: ${config.description || '无'}
+
+=== 路由规则 (route.toml) ===
+${config.routeConfig || '未设置'}
+
+=== 黑名单 (blocklist) ===
+${config.blockList || '未设置'}
+
+创建时间: ${formatDate(config.createdAt)}
+    `.trim();
+
+    alert(details);
+}
+
+// 删除路由配置
+async function deleteRouteConfig(id) {
+    if (!confirm('确定要删除此路由配置吗？')) {
+        return;
+    }
+
+    try {
+        try {
+            await apiCall(`/route-configs/${id}`, {
+                method: 'DELETE'
+            });
+        } catch (error) {
+            // API 未实现，从本地存储删除
+            const index = state.routeConfigs.findIndex(c => c.id === id);
+            if (index !== -1) {
+                state.routeConfigs.splice(index, 1);
+                localStorage.setItem('routeConfigs', JSON.stringify(state.routeConfigs));
+            }
+        }
+
+        alert('路由配置删除成功');
+        loadRouteConfigs();
+    } catch (error) {
+        console.error('删除路由配置失败:', error);
+        addApiLog(`删除路由配置失败: ${error.message}`, 'error');
+    }
 }
 
 // ==================== 诊断功能 ====================
