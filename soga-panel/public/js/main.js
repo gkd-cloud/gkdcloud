@@ -805,7 +805,7 @@ function renderServers() {
             </div>
             <div class="card-actions">
                 <div class="dropdown">
-                    <button class="dropdown-toggle">⚙️ 操作</button>
+                    <button class="dropdown-toggle" onclick="toggleDropdown(event)">⚙️ 操作</button>
                     <div class="dropdown-menu">
                         <button onclick="testServer('${server.id}')">测试连接</button>
                         <button onclick="getServerInfo('${server.id}')">系统信息</button>
