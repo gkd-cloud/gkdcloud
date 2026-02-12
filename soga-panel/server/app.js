@@ -15,6 +15,7 @@ const versionRoutes = require('./routes/version');
 const monitorRoutes = require('./routes/monitor');
 const settingsRoutes = require('./routes/settings');
 const templatesRoutes = require('./routes/templates');
+const subscribeRoutes = require('./routes/subscribe');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -63,6 +64,9 @@ app.use('/api/version', authMiddleware, versionRoutes);
 app.use('/api/monitor', authMiddleware, monitorRoutes);
 app.use('/api/settings', authMiddleware, settingsRoutes);
 app.use('/api/templates', authMiddleware, templatesRoutes);
+
+// 订阅代理（不需要认证，客户端直接访问）
+app.use('/sub', subscribeRoutes);
 
 // 健康检查（不需要认证）
 app.get('/api/health', (req, res) => {
