@@ -9,7 +9,8 @@ use App\Utils\{
     URL,
     Tools,
     AppURI,
-    ConfRender
+    ConfRender,
+    DomainReplacer
 };
 use App\Metron\Metron;
 use voku\helper\AntiXSS;
@@ -169,6 +170,20 @@ class LinkController extends BaseController
 
                     $class = ('get' . $SubscribeExtend['class']);
                     $content = self::$class($user, $query_value, $opts, $Rule);
+
+                    // --- Shadowrocket iOS 域名替换 开始 ---
+                    $ua = $request->getHeaderLine('User-Agent');
+                    $replaceConfig = require BASE_PATH . '/config/domainReplace.php';
+                    if (
+                        $replaceConfig['enabled']
+                        && DomainReplacer::isShadowrocket($ua)
+                        && !empty($replaceConfig['mapping'])
+                    ) {
+                        $replacer = new DomainReplacer($replaceConfig['mapping']);
+                        $content = $replacer->replaceBase64($content);
+                    }
+                    // --- Shadowrocket iOS 域名替换 结束 ---
+
                     $getBody = self::getBody(
                         $user,
                         $response,
