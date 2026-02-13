@@ -1,0 +1,7 @@
+{
+  "port": 3000,
+  "upstream": "https://gkd.xn--yrs494l.com/link",
+  "domainMapping": {
+    "old-node.example.com": "new-node.example.com"
+  }
+}
