@@ -1,7 +1,0 @@
-{
-  "enabled": true,
-  "upstreamBaseUrl": "https://gkd.xn--yrs494l.com/link",
-  "domainMapping": {
-    "old-node.example.com": "new-node.example.com"
-  }
-}
