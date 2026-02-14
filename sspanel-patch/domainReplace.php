@@ -19,7 +19,8 @@ return [
     // 域名映射表
     'mapping' => [
         // 示例: 把节点中的 hk1.old-domain.com 替换为 hk1.new-domain.com
-        // 'hk1.old-domain.com' => 'hk1.new-domain.com',
+         'hk1.gnodecn.com' => 'hk1.gkdnode.net',
+         'hk2.gnodecn.com' => 'hk2.gkdnode.net',
         // 'us1.old-domain.com' => 'us1.new-domain.com',
     ],
 ];

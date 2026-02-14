@@ -7,7 +7,7 @@
  * 命名空间: App\Utils
  *
  * 功能: 解析 Base64 编码的订阅内容，按配置把节点连接域名替换为指定域名
- * 支持协议: vmess / ss / trojan / vless / hysteria2(hy2)
+ * 支持协议: vmess / ss / ssr / trojan / vless / hysteria2(hy2)
  */
 
 declare(strict_types=1);
@@ -85,6 +85,7 @@ final class DomainReplacer
 
         // 根据协议前缀分发
         if (str_starts_with($line, 'vmess://'))     return $this->modifyVmess($line);
+        if (str_starts_with($line, 'ssr://'))       return $this->modifySSR($line);
         if (str_starts_with($line, 'ss://'))         return $this->modifySS($line);
         if (str_starts_with($line, 'trojan://'))     return $this->modifyStandard($line, 'trojan://');
         if (str_starts_with($line, 'vless://'))      return $this->modifyStandard($line, 'vless://');
@@ -108,6 +109,32 @@ final class DomainReplacer
 
         $json['add'] = $this->replaceDomain($json['add']);
         return 'vmess://' . base64_encode(json_encode($json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * ssr://base64(server:port:protocol:method:obfs:password_base64/?params)
+     */
+    private function modifySSR(string $line): string
+    {
+        $encoded = substr($line, 6); // 去掉 ssr://
+        $decoded = base64_decode(str_replace(['-', '_'], ['+', '/'], $encoded), true);
+        if ($decoded === false) {
+            return $line;
+        }
+
+        $colonPos = strpos($decoded, ':');
+        if ($colonPos === false) {
+            return $line;
+        }
+
+        $server = substr($decoded, 0, $colonPos);
+        $rest = substr($decoded, $colonPos);
+        $modified = $this->replaceDomain($server) . $rest;
+
+        // SSR 使用 URL-safe base64
+        $b64 = base64_encode($modified);
+        $b64 = str_replace(['+', '/', '='], ['-', '_', ''], $b64);
+        return 'ssr://' . $b64;
     }
 
     /**
