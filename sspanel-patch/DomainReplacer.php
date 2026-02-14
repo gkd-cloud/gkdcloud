@@ -74,7 +74,26 @@ final class DomainReplacer
 
     private function replaceDomain(string $domain): string
     {
-        return $this->mapping[$domain] ?? $domain;
+        // 精确匹配优先
+        if (isset($this->mapping[$domain])) {
+            return $this->mapping[$domain];
+        }
+
+        // 泛域名匹配: '*.old.com' => '*.new.com'
+        foreach ($this->mapping as $pattern => $replacement) {
+            if (str_starts_with($pattern, '*.')) {
+                $suffix = substr($pattern, 2); // old.com
+                if (str_ends_with($domain, '.' . $suffix)) {
+                    $sub = substr($domain, 0, -(strlen($suffix) + 1)); // hk1
+                    if (str_starts_with($replacement, '*.')) {
+                        return $sub . '.' . substr($replacement, 2);
+                    }
+                    return $replacement; // 固定替换，不保留子域名
+                }
+            }
+        }
+
+        return $domain;
     }
 
     private function processLine(string $line): string

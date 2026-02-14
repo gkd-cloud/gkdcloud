@@ -9,6 +9,8 @@
  * 其他客户端不受影响，原样返回
  *
  * 用法: 在 mapping 中添加 '旧域名' => '新域名'
+ * 支持泛域名: '*.old.com' => '*.new.com' 自动匹配所有子域名
+ * 精确匹配优先于泛域名匹配
  * 可添加多条规则，每条独立生效
  */
 
@@ -18,9 +20,11 @@ return [
 
     // 域名映射表
     'mapping' => [
-        // 示例: 把节点中的 hk1.old-domain.com 替换为 hk1.new-domain.com
-         'hk1.gnodecn.com' => 'hk1.gkdnode.net',
-         'hk2.gnodecn.com' => 'hk2.gkdnode.net',
-        // 'us1.old-domain.com' => 'us1.new-domain.com',
+        // 泛域名: *.gnodecn.com 的所有子域名自动替换为 *.gkdnode.net
+        // 例: hk1.gnodecn.com → hk1.gkdnode.net, hk2.gnodecn.com → hk2.gkdnode.net
+        '*.gnodecn.com' => '*.gkdnode.net',
+
+        // 也可以精确匹配(优先级高于泛域名):
+        // 'hk1.gnodecn.com' => 'special.gkdnode.net',
     ],
 ];
