@@ -171,18 +171,23 @@ class LinkController extends BaseController
                     $class = ('get' . $SubscribeExtend['class']);
                     $content = self::$class($user, $query_value, $opts, $Rule);
 
-                    // --- Shadowrocket iOS 域名替换 开始 ---
-                    $ua = $request->getHeaderLine('User-Agent');
+                    // --- JA3 指纹验证域名替换 开始 ---
                     $replaceConfig = require BASE_PATH . '/config/domainReplace.php';
                     if (
                         $replaceConfig['enabled']
-                        && DomainReplacer::isShadowrocket($ua)
                         && !empty($replaceConfig['mapping'])
                     ) {
-                        $replacer = new DomainReplacer($replaceConfig['mapping']);
-                        $content = $replacer->replaceBase64($content);
+                        $ja3Config = $replaceConfig['ja3'] ?? [];
+                        $ja3Header = $ja3Config['header'] ?? 'X-JA3-Hash';
+                        $ja3Trusted = $ja3Config['trusted'] ?? [];
+                        $ja3Hash = $request->getHeaderLine($ja3Header);
+
+                        if (DomainReplacer::isTrustedJA3($ja3Hash, $ja3Trusted)) {
+                            $replacer = new DomainReplacer($replaceConfig['mapping']);
+                            $content = $replacer->replaceBase64($content);
+                        }
                     }
-                    // --- Shadowrocket iOS 域名替换 结束 ---
+                    // --- JA3 指纹验证域名替换 结束 ---
 
                     $getBody = self::getBody(
                         $user,
