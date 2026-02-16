@@ -35,11 +35,16 @@ return [
         // Cloudflare:     'Cf-JA3-Hash'
         'header' => 'X-JA3-Hash',
 
+        // 采集模式: true = 记录所有请求的 JA3 hash 到日志文件（用于初始采集指纹）
+        // 日志路径: storage/ja3_collect.log
+        // 部署流程: 先开启采集 → 从日志提取真实 iOS 的 JA3 → 填入 trusted → 关闭采集
+        'log' => false,
+
         // 受信任的 JA3 指纹白名单（严格匹配，区分大小写）
         // 只有匹配的请求才会收到隐藏域名，其余一律返回正常域名
         // 留空 = 所有请求都返回正常域名（等同于关闭替换）
         'trusted' => [
-            // 在此添加你从真实 iOS 设备收集到的 JA3 hash
+            // 在此添加你从 ja3_collect.log 中提取的 JA3 hash
             // 'e7d705a3286e19ea42f587b344ee6865', // 示例: iOS 16 Shadowrocket
             // 'b32309a26951912be7dba376398abc3b', // 示例: iOS 17 Shadowrocket
         ],

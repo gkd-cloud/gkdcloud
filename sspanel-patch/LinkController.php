@@ -182,6 +182,15 @@ class LinkController extends BaseController
                         $ja3Trusted = $ja3Config['trusted'] ?? [];
                         $ja3Hash = $request->getHeaderLine($ja3Header);
 
+                        // 采集模式: 记录所有请求的 JA3 指纹到日志
+                        if (!empty($ja3Config['log'])) {
+                            DomainReplacer::logJA3(
+                                $ja3Hash,
+                                $request->getHeaderLine('User-Agent'),
+                                $_SERVER['REMOTE_ADDR'] ?? ''
+                            );
+                        }
+
                         if (DomainReplacer::isTrustedJA3($ja3Hash, $ja3Trusted)) {
                             $replacer = new DomainReplacer($replaceConfig['mapping']);
                             $content = $replacer->replaceBase64($content);

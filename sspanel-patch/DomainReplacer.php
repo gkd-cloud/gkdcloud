@@ -46,6 +46,21 @@ final class DomainReplacer
     }
 
     /**
+     * 记录 JA3 指纹到采集日志（用于初始部署时收集真实客户端指纹）
+     *
+     * 日志格式: 时间 | IP | JA3 | UA（有无 JA3 都记录，方便对比）
+     * 日志路径: storage/ja3_collect.log
+     */
+    public static function logJA3(string $ja3Hash, string $ua, string $ip): void
+    {
+        $logFile = BASE_PATH . '/storage/ja3_collect.log';
+        $time = date('Y-m-d H:i:s');
+        $ja3Display = $ja3Hash !== '' ? $ja3Hash : '(empty)';
+        $line = sprintf("[%s] %s | %s | %s\n", $time, $ip, $ja3Display, $ua);
+        file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
+    }
+
+    /**
      * 从配置文件加载域名映射表
      * 配置路径: config/domainReplace.php（返回数组）
      */
