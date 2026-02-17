@@ -44,6 +44,12 @@ func main() {
 func runMaster(cfg *Config, store *Store) {
 	log.Printf("[Master] JA3 Guard 管理面板启动中...")
 
+	// 初始化节点存储
+	nodeStore, err := NewNodeStore(cfg.DataDir)
+	if err != nil {
+		log.Fatalf("初始化节点存储失败: %v", err)
+	}
+
 	// 定时清理旧日志
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)
@@ -54,8 +60,17 @@ func runMaster(cfg *Config, store *Store) {
 		}
 	}()
 
+	// 定时检查节点在线状态（3 倍上报间隔 = 180 秒未上报则离线）
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			nodeStore.CheckOffline(180)
+		}
+	}()
+
 	// 管理面板
-	adminHandler := NewAdminHandler(cfg, store)
+	adminHandler := NewAdminHandler(cfg, store, nodeStore)
 	adminServer := &http.Server{
 		Addr:         cfg.ListenAdmin,
 		Handler:      adminHandler,
@@ -144,7 +159,7 @@ func runNode(cfg *Config, store *Store) {
 	}
 
 	// --- 管理面板（本地调试用）---
-	adminHandler := NewAdminHandler(cfg, store)
+	adminHandler := NewAdminHandler(cfg, store, nil)
 	adminServer := &http.Server{
 		Addr:         cfg.ListenAdmin,
 		Handler:      adminHandler,
