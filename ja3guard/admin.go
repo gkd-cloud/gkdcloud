@@ -15,12 +15,13 @@ var adminFS embed.FS
 type AdminHandler struct {
 	cfg   *Config
 	store *Store
+	nginx *NginxManager
 	tmpl  *template.Template
 }
 
 func NewAdminHandler(cfg *Config, store *Store) *AdminHandler {
 	tmpl := template.Must(template.ParseFS(adminFS, "web/admin.html"))
-	return &AdminHandler{cfg: cfg, store: store, tmpl: tmpl}
+	return &AdminHandler{cfg: cfg, store: store, nginx: NewNginxManager(), tmpl: tmpl}
 }
 
 func (h *AdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -56,6 +57,27 @@ func (h *AdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleSettingsUpdate(w, r)
 	case path == "api/logs/cleanup" && r.Method == http.MethodPost:
 		h.handleCleanup(w, r)
+	// --- Nginx 管理 ---
+	case path == "api/nginx/status":
+		h.handleNginxStatus(w, r)
+	case path == "api/nginx/sites" && r.Method == http.MethodGet:
+		h.handleNginxList(w, r)
+	case path == "api/nginx/sites" && r.Method == http.MethodPost:
+		h.handleNginxSave(w, r)
+	case path == "api/nginx/test" && r.Method == http.MethodPost:
+		h.handleNginxTest(w, r)
+	case path == "api/nginx/reload" && r.Method == http.MethodPost:
+		h.handleNginxReload(w, r)
+	case strings.HasPrefix(path, "api/nginx/sites/") && strings.HasSuffix(path, "/toggle") && r.Method == http.MethodPost:
+		name := strings.TrimPrefix(path, "api/nginx/sites/")
+		name = strings.TrimSuffix(name, "/toggle")
+		h.handleNginxToggle(w, r, name)
+	case strings.HasPrefix(path, "api/nginx/sites/") && r.Method == http.MethodGet:
+		name := strings.TrimPrefix(path, "api/nginx/sites/")
+		h.handleNginxGet(w, r, name)
+	case strings.HasPrefix(path, "api/nginx/sites/") && r.Method == http.MethodDelete:
+		name := strings.TrimPrefix(path, "api/nginx/sites/")
+		h.handleNginxDelete(w, r, name)
 	default:
 		http.NotFound(w, r)
 	}
