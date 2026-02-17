@@ -5,50 +5,20 @@
  *
  * 放置位置: config/domainReplace.php
  *
- * 通过 JA3 TLS 指纹白名单验证客户端身份，只有受信任的客户端才会收到隐藏域名
+ * 通过 JA3 Guard 服务验证客户端 TLS 指纹，只有受信任的客户端才会收到隐藏域名
  * 未匹配 JA3 指纹的请求一律返回原始域名（宁可错杀，不可放过）
  *
- * 用法: 在 mapping 中添加 '旧域名' => '新域名'
- * 支持泛域名: '*.old.com' => '*.new.com' 自动匹配所有子域名
- * 精确匹配优先于泛域名匹配
- *
- * JA3 指纹获取方式:
- *   1. Web 服务器（Nginx/HAProxy/Cloudflare）提取 JA3 hash 并传递为 HTTP header
- *   2. 用真实 iOS 设备的 Shadowrocket 请求一次订阅
- *   3. 从 Web 服务器日志中提取该请求的 JA3 hash，填入 trusted 列表
- *
- * Web 服务器配置示例:
- *   Nginx (需 ja3 模块):  proxy_set_header X-JA3-Hash $http_ssl_ja3_hash;
- *   HAProxy 2.6+:          http-request set-header X-JA3-Hash %[ssl_fc_ja3]
- *   Cloudflare:             自动提供，header 名填 Cf-JA3-Hash
+ * 架构: Client → JA3 Guard (Go, 提取 JA3) → Nginx → PHP
+ * JA3 Guard 通过 X-JA3-Trusted + X-Guard-Secret header 传递验证结果
  */
 
 return [
     // true = 启用替换, false = 关闭（所有客户端都原样返回）
     'enabled' => true,
 
-    // JA3 TLS 指纹验证配置
-    'ja3' => [
-        // JA3 hash 来源的 HTTP header 名称（由 Web 服务器设置）
-        // Nginx ja3 模块: 'X-JA3-Hash'
-        // HAProxy:        'X-JA3-Hash'
-        // Cloudflare:     'Cf-JA3-Hash'
-        'header' => 'X-JA3-Hash',
-
-        // 采集模式: true = 记录所有请求的 JA3 hash 到日志文件（用于初始采集指纹）
-        // 日志路径: storage/ja3_collect.log
-        // 部署流程: 先开启采集 → 从日志提取真实 iOS 的 JA3 → 填入 trusted → 关闭采集
-        'log' => false,
-
-        // 受信任的 JA3 指纹白名单（严格匹配，区分大小写）
-        // 只有匹配的请求才会收到隐藏域名，其余一律返回正常域名
-        // 留空 = 所有请求都返回正常域名（等同于关闭替换）
-        'trusted' => [
-            // 在此添加你从 ja3_collect.log 中提取的 JA3 hash
-            // 'e7d705a3286e19ea42f587b344ee6865', // 示例: iOS 16 Shadowrocket
-            // 'b32309a26951912be7dba376398abc3b', // 示例: iOS 17 Shadowrocket
-        ],
-    ],
+    // JA3 Guard 共享密钥（必须与 JA3 Guard config.json 中的 guard_secret 一致）
+    // 用于验证请求确实来自 JA3 Guard，防止绕过直连 Nginx 伪造 header
+    'guard_secret' => '',
 
     // 域名映射表
     'mapping' => [

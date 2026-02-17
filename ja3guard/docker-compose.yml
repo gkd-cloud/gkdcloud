@@ -1,0 +1,19 @@
+services:
+  ja3guard:
+    build: .
+    container_name: ja3guard
+    restart: unless-stopped
+    ports:
+      # ACME HTTP-01 验证 + HTTPS 重定向
+      - "80:80"
+      # TLS 订阅代理（提取 JA3 指纹）
+      - "443:443"
+      # 管理面板（仅本地访问，通过 SSH 隧道使用）
+      - "127.0.0.1:8443:8443"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Shanghai
+    # 如果上游 Nginx 在宿主机上，取消下面的注释
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

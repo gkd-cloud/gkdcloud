@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JA3 Guard</title>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #c9d1d9; --text2: #8b949e; --text3: #484f58;
+  --green: #3fb950; --red: #f85149; --blue: #58a6ff; --yellow: #d29922;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'SF Pro', system-ui, monospace; background: var(--bg); color: var(--text); }
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 56px; }
+header h1 { font-size: 16px; font-weight: 600; margin-right: 32px; }
+header h1 span { color: var(--green); }
+nav { display: flex; gap: 4px; }
+nav button { background: none; border: none; color: var(--text2); padding: 8px 16px; cursor: pointer; font-size: 14px; border-radius: 6px; }
+nav button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+nav button.active { color: var(--text); background: rgba(255,255,255,0.08); }
+main { max-width: 1100px; margin: 24px auto; padding: 0 24px; }
+.page { display: none; }
+.page.active { display: block; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+.card .label { font-size: 12px; color: var(--text2); text-transform: uppercase; margin-bottom: 4px; }
+.card .value { font-size: 28px; font-weight: 600; }
+.card .value.green { color: var(--green); }
+.card .value.red { color: var(--red); }
+.card .value.blue { color: var(--blue); }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+th { background: rgba(255,255,255,0.03); color: var(--text2); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.hash { font-family: monospace; font-size: 12px; color: var(--blue); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ua { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); font-size: 12px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.badge.ok { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge.no { background: rgba(248,81,73,0.15); color: var(--red); }
+.badge.wl { background: rgba(88,166,255,0.15); color: var(--blue); }
+button.btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; }
+button.btn:hover { background: rgba(255,255,255,0.06); }
+button.btn.primary { background: rgba(63,185,80,0.15); border-color: var(--green); color: var(--green); }
+button.btn.danger { background: rgba(248,81,73,0.1); border-color: transparent; color: var(--red); }
+button.btn.sm { padding: 3px 10px; font-size: 12px; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.toolbar h2 { font-size: 16px; font-weight: 600; }
+input[type=text] { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 13px; outline: none; }
+input[type=text]:focus { border-color: var(--blue); }
+.form-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+.pagination { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+.toggle { position: relative; display: inline-block; width: 44px; height: 24px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle .slider { position: absolute; inset: 0; background: var(--text3); border-radius: 24px; cursor: pointer; transition: .2s; }
+.toggle .slider:before { content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s; }
+.toggle input:checked + .slider { background: var(--green); }
+.toggle input:checked + .slider:before { transform: translateX(20px); }
+.setting-row { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; }
+.setting-row .info { }
+.setting-row .info .title { font-size: 14px; font-weight: 500; }
+.setting-row .info .desc { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.empty { text-align: center; padding: 40px; color: var(--text3); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>JA3 <span>Guard</span></h1>
+  <nav>
+    <button class="active" onclick="showPage('dashboard')">Dashboard</button>
+    <button onclick="showPage('summary')">JA3 Fingerprints</button>
+    <button onclick="showPage('whitelist')">Whitelist</button>
+    <button onclick="showPage('logs')">Request Logs</button>
+    <button onclick="showPage('settings')">Settings</button>
+  </nav>
+</header>
+
+<main>
+
+<!-- Dashboard -->
+<div id="page-dashboard" class="page active">
+  <div class="cards">
+    <div class="card"><div class="label">Total Requests</div><div class="value blue" id="stat-total">-</div></div>
+    <div class="card"><div class="label">Trusted (Whitelisted)</div><div class="value green" id="stat-trusted">-</div></div>
+    <div class="card"><div class="label">Blocked (Unknown JA3)</div><div class="value red" id="stat-blocked">-</div></div>
+  </div>
+  <div class="toolbar"><h2>Recent Activity</h2><button class="btn sm" onclick="loadDashboard()">Refresh</button></div>
+  <table>
+    <thead><tr><th>Time</th><th>IP</th><th>JA3 Hash</th><th>User-Agent</th><th>Status</th></tr></thead>
+    <tbody id="recent-logs"></tbody>
+  </table>
+</div>
+
+<!-- JA3 Summary -->
+<div id="page-summary" class="page">
+  <div class="toolbar"><h2>JA3 Fingerprint Summary</h2><button class="btn sm" onclick="loadSummary()">Refresh</button></div>
+  <table>
+    <thead><tr><th>JA3 Hash</th><th>Count</th><th>Last UA</th><th>Last IP</th><th>Last Seen</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody id="summary-body"></tbody>
+  </table>
+</div>
+
+<!-- Whitelist -->
+<div id="page-whitelist" class="page">
+  <div class="toolbar"><h2>Whitelist Management</h2></div>
+  <div class="form-row">
+    <input type="text" id="wl-hash" placeholder="JA3 Hash" style="width:340px">
+    <input type="text" id="wl-note" placeholder="Note (e.g. iOS 17 SR)" style="width:200px">
+    <button class="btn primary" onclick="addWhitelist()">Add</button>
+  </div>
+  <table>
+    <thead><tr><th>JA3 Hash</th><th>Note</th><th>Added</th><th>Action</th></tr></thead>
+    <tbody id="wl-body"></tbody>
+  </table>
+</div>
+
+<!-- Request Logs -->
+<div id="page-logs" class="page">
+  <div class="toolbar"><h2>Request Logs</h2><button class="btn sm" onclick="loadLogs()">Refresh</button></div>
+  <table>
+    <thead><tr><th>Time</th><th>IP</th><th>JA3 Hash</th><th>User-Agent</th><th>Status</th></tr></thead>
+    <tbody id="logs-body"></tbody>
+  </table>
+  <div class="pagination" id="logs-pagination"></div>
+</div>
+
+<!-- Settings -->
+<div id="page-settings" class="page">
+  <div class="toolbar"><h2>Settings</h2></div>
+  <div class="setting-row">
+    <div class="info">
+      <div class="title">Request Logging</div>
+      <div class="desc">Record all incoming JA3 fingerprints for analysis. Disable after collecting enough data.</div>
+    </div>
+    <label class="toggle"><input type="checkbox" id="set-log" onchange="updateSettings()"><span class="slider"></span></label>
+  </div>
+  <div class="setting-row">
+    <div class="info">
+      <div class="title">Domain</div>
+      <div class="desc" id="set-domain">-</div>
+    </div>
+    <span style="color:var(--text3);font-size:13px">config.json</span>
+  </div>
+  <div class="setting-row">
+    <div class="info">
+      <div class="title">Upstream</div>
+      <div class="desc" id="set-upstream">-</div>
+    </div>
+    <span style="color:var(--text3);font-size:13px">config.json</span>
+  </div>
+  <div class="setting-row">
+    <div class="info">
+      <div class="title">Cleanup Old Logs</div>
+      <div class="desc">Remove request logs older than 30 days</div>
+    </div>
+    <button class="btn danger sm" onclick="cleanupLogs()">Cleanup Now</button>
+  </div>
+</div>
+
+</main>
+
+<script>
+const API = '';
+let logsPage = 1;
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.target.classList.add('active');
+  const loaders = { dashboard: loadDashboard, summary: loadSummary, whitelist: loadWhitelist, logs: loadLogs, settings: loadSettings };
+  if (loaders[name]) loaders[name]();
+}
+
+async function api(path, opts) {
+  const res = await fetch(API + '/' + path, opts);
+  return res.json();
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// --- Dashboard ---
+async function loadDashboard() {
+  const stats = await api('api/stats');
+  document.getElementById('stat-total').textContent = stats.total_requests;
+  document.getElementById('stat-trusted').textContent = stats.trusted_count;
+  document.getElementById('stat-blocked').textContent = stats.blocked_count;
+
+  const data = await api('api/logs?page=1&size=20');
+  const tbody = document.getElementById('recent-logs');
+  if (!data.logs || data.logs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">No requests yet. Waiting for traffic...</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.logs.map(l => `<tr>
+    <td>${escHtml(l.ts)}</td>
+    <td>${escHtml(l.ip)}</td>
+    <td><span class="hash" title="${escHtml(l.ja3)}">${escHtml(l.ja3 || '(empty)')}</span></td>
+    <td><span class="ua" title="${escHtml(l.ua)}">${escHtml(l.ua)}</span></td>
+    <td><span class="badge ${l.ok ? 'ok' : 'no'}">${l.ok ? 'TRUSTED' : 'BLOCKED'}</span></td>
+  </tr>`).join('');
+}
+
+// --- Summary ---
+async function loadSummary() {
+  const data = await api('api/logs/summary');
+  const tbody = document.getElementById('summary-body');
+  if (!data.summaries || data.summaries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No data yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.summaries.map(s => `<tr>
+    <td><span class="hash" title="${escHtml(s.ja3_hash)}">${escHtml(s.ja3_hash || '(empty)')}</span></td>
+    <td>${s.count}</td>
+    <td><span class="ua" title="${escHtml(s.last_ua)}">${escHtml(s.last_ua)}</span></td>
+    <td>${escHtml(s.last_ip)}</td>
+    <td>${escHtml(s.last_seen)}</td>
+    <td>${s.in_whitelist ? '<span class="badge wl">WHITELISTED</span>' : '<span class="badge no">UNKNOWN</span>'}</td>
+    <td>${s.in_whitelist ? '' : `<button class="btn primary sm" onclick="quickAdd('${escHtml(s.ja3_hash)}')">Add</button>`}</td>
+  </tr>`).join('');
+}
+
+function quickAdd(hash) {
+  const note = prompt('Note for this JA3 hash:', '');
+  if (note === null) return;
+  api('api/whitelist', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ja3_hash: hash, note: note})
+  }).then(() => { loadSummary(); });
+}
+
+// --- Whitelist ---
+async function loadWhitelist() {
+  const data = await api('api/whitelist');
+  const tbody = document.getElementById('wl-body');
+  if (!data.entries || data.entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Whitelist is empty. Add JA3 hashes from the Fingerprints tab.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.entries.map(e => `<tr>
+    <td><span class="hash">${escHtml(e.ja3_hash)}</span></td>
+    <td>${escHtml(e.note)}</td>
+    <td style="color:var(--text2)">${escHtml(e.created_at)}</td>
+    <td><button class="btn danger sm" onclick="removeWL('${escHtml(e.ja3_hash)}')">Remove</button></td>
+  </tr>`).join('');
+}
+
+async function addWhitelist() {
+  const hash = document.getElementById('wl-hash').value.trim();
+  const note = document.getElementById('wl-note').value.trim();
+  if (!hash) return alert('JA3 Hash is required');
+  await api('api/whitelist', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ja3_hash: hash, note: note})
+  });
+  document.getElementById('wl-hash').value = '';
+  document.getElementById('wl-note').value = '';
+  loadWhitelist();
+}
+
+async function removeWL(hash) {
+  if (!confirm('Remove this JA3 hash from whitelist?')) return;
+  await api('api/whitelist/' + encodeURIComponent(hash), {method: 'DELETE'});
+  loadWhitelist();
+}
+
+// --- Logs ---
+async function loadLogs() {
+  const data = await api('api/logs?page=' + logsPage + '&size=50');
+  const tbody = document.getElementById('logs-body');
+  if (!data.logs || data.logs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">No logs</td></tr>';
+    document.getElementById('logs-pagination').innerHTML = '';
+    return;
+  }
+  tbody.innerHTML = data.logs.map(l => `<tr>
+    <td>${escHtml(l.ts)}</td>
+    <td>${escHtml(l.ip)}</td>
+    <td><span class="hash" title="${escHtml(l.ja3)}">${escHtml(l.ja3 || '(empty)')}</span></td>
+    <td><span class="ua" title="${escHtml(l.ua)}">${escHtml(l.ua)}</span></td>
+    <td><span class="badge ${l.ok ? 'ok' : 'no'}">${l.ok ? 'TRUSTED' : 'BLOCKED'}</span></td>
+  </tr>`).join('');
+
+  const totalPages = Math.ceil(data.total / data.size);
+  let pag = '';
+  if (logsPage > 1) pag += `<button class="btn sm" onclick="logsPage--;loadLogs()">Prev</button>`;
+  pag += `<span style="color:var(--text2);font-size:13px;line-height:30px">${logsPage} / ${totalPages} (${data.total} total)</span>`;
+  if (logsPage < totalPages) pag += `<button class="btn sm" onclick="logsPage++;loadLogs()">Next</button>`;
+  document.getElementById('logs-pagination').innerHTML = pag;
+}
+
+// --- Settings ---
+async function loadSettings() {
+  const data = await api('api/settings');
+  document.getElementById('set-log').checked = data.log_enabled;
+  document.getElementById('set-domain').textContent = data.domain;
+  document.getElementById('set-upstream').textContent = data.upstream;
+}
+
+async function updateSettings() {
+  await api('api/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({log_enabled: document.getElementById('set-log').checked})
+  });
+}
+
+async function cleanupLogs() {
+  if (!confirm('Delete logs older than 30 days?')) return;
+  await api('api/logs/cleanup', {method: 'POST'});
+  alert('Done');
+}
+
+// Init
+loadDashboard();
+</script>
+</body>
+</html>

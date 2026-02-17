@@ -8,7 +8,7 @@
  *
  * 功能: 解析 Base64 编码的订阅内容，按配置把节点连接域名替换为指定域名
  * 支持协议: vmess / ss / ssr / trojan / vless / hysteria2(hy2)
- * 安全: 通过 JA3 TLS 指纹白名单验证客户端身份，防止 GFW 主动探测获取隐藏域名
+ * 安全: 由 JA3 Guard (Go 服务) 在 TLS 层验证客户端指纹，PHP 只需检查信任 header
  */
 
 declare(strict_types=1);
@@ -28,37 +28,6 @@ final class DomainReplacer
     // ============================================================
     //  对外入口
     // ============================================================
-
-    /**
-     * 验证 JA3 TLS 指纹是否在白名单中
-     *
-     * @param string $ja3Hash  请求的 JA3 hash（由 Web 服务器提取并传递）
-     * @param array  $trusted  受信任的 JA3 hash 白名单
-     * @return bool 匹配返回 true，不匹配或为空返回 false
-     */
-    public static function isTrustedJA3(string $ja3Hash, array $trusted): bool
-    {
-        if ($ja3Hash === '' || empty($trusted)) {
-            return false;
-        }
-
-        return in_array($ja3Hash, $trusted, true);
-    }
-
-    /**
-     * 记录 JA3 指纹到采集日志（用于初始部署时收集真实客户端指纹）
-     *
-     * 日志格式: 时间 | IP | JA3 | UA（有无 JA3 都记录，方便对比）
-     * 日志路径: storage/ja3_collect.log
-     */
-    public static function logJA3(string $ja3Hash, string $ua, string $ip): void
-    {
-        $logFile = BASE_PATH . '/storage/ja3_collect.log';
-        $time = date('Y-m-d H:i:s');
-        $ja3Display = $ja3Hash !== '' ? $ja3Hash : '(empty)';
-        $line = sprintf("[%s] %s | %s | %s\n", $time, $ip, $ja3Display, $ua);
-        file_put_contents($logFile, $line, FILE_APPEND | LOCK_EX);
-    }
 
     /**
      * 从配置文件加载域名映射表

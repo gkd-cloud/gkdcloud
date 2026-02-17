@@ -171,32 +171,24 @@ class LinkController extends BaseController
                     $class = ('get' . $SubscribeExtend['class']);
                     $content = self::$class($user, $query_value, $opts, $Rule);
 
-                    // --- JA3 指纹验证域名替换 开始 ---
+                    // --- JA3 Guard 域名替换 开始 ---
+                    // JA3 Guard (Go 服务) 负责提取 TLS 指纹并查白名单
+                    // PHP 只需检查 X-JA3-Trusted header（通过共享密钥验证来源）
                     $replaceConfig = require BASE_PATH . '/config/domainReplace.php';
                     if (
                         $replaceConfig['enabled']
                         && !empty($replaceConfig['mapping'])
                     ) {
-                        $ja3Config = $replaceConfig['ja3'] ?? [];
-                        $ja3Header = $ja3Config['header'] ?? 'X-JA3-Hash';
-                        $ja3Trusted = $ja3Config['trusted'] ?? [];
-                        $ja3Hash = $request->getHeaderLine($ja3Header);
+                        $guardSecret = $replaceConfig['guard_secret'] ?? '';
+                        $reqSecret = $request->getHeaderLine('X-Guard-Secret');
+                        $isTrusted = $request->getHeaderLine('X-JA3-Trusted') === '1';
 
-                        // 采集模式: 记录所有请求的 JA3 指纹到日志
-                        if (!empty($ja3Config['log'])) {
-                            DomainReplacer::logJA3(
-                                $ja3Hash,
-                                $request->getHeaderLine('User-Agent'),
-                                $_SERVER['REMOTE_ADDR'] ?? ''
-                            );
-                        }
-
-                        if (DomainReplacer::isTrustedJA3($ja3Hash, $ja3Trusted)) {
+                        if ($guardSecret !== '' && hash_equals($guardSecret, $reqSecret) && $isTrusted) {
                             $replacer = new DomainReplacer($replaceConfig['mapping']);
                             $content = $replacer->replaceBase64($content);
                         }
                     }
-                    // --- JA3 指纹验证域名替换 结束 ---
+                    // --- JA3 Guard 域名替换 结束 ---
 
                     $getBody = self::getBody(
                         $user,
