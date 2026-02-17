@@ -390,6 +390,8 @@ build_app() {
         cp -r "${source_dir}/go.mod" "${INSTALL_DIR}/"
         [[ -f "${source_dir}/go.sum" ]] && cp "${source_dir}/go.sum" "${INSTALL_DIR}/"
         [[ -d "${source_dir}/web" ]] && cp -r "${source_dir}/web" "${INSTALL_DIR}/"
+        # install.sh 需要被 go:embed 嵌入到二进制中
+        [[ -f "${source_dir}/install.sh" ]] && cp "${source_dir}/install.sh" "${INSTALL_DIR}/"
         info "源码已复制到 $INSTALL_DIR"
     fi
 
