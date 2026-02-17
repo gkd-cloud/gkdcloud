@@ -2,21 +2,30 @@
 #
 # JA3 Guard 一键部署脚本（裸机版，无需 Docker）
 #
+# 用法:
+#   install.sh master   - 安装管理面板 (Master 模式)
+#   install.sh node     - 安装 JA3 反代节点 (Node 模式，默认)
+#   install.sh upgrade  - 升级现有安装
+#   install.sh uninstall- 卸载
+#
 # 交互式:
-#   curl -fsSL <url>/install.sh | sudo bash
+#   curl -fsSL <url>/install.sh | sudo bash -s -- master
+#   curl -fsSL <url>/install.sh | sudo bash -s -- node
+#   curl -fsSL <url>/install.sh | sudo bash       # 默认 node
 #
 # 非交互式 (通过环境变量):
-#   curl -fsSL <url>/install.sh | JA3_DOMAIN=sub.example.com sudo -E bash
-#
-# 本地运行:
-#   cd ja3guard && sudo bash install.sh
+#   curl -fsSL <url>/install.sh | JA3_DOMAIN=sub.example.com sudo -E bash -s -- node
 #
 # 环境变量 (可选，跳过交互提问):
-#   JA3_DOMAIN          - 订阅域名 (必填，无默认值)
-#   JA3_UPSTREAM        - 上游地址 (默认 127.0.0.1:8080)
+#   JA3_MODE            - 安装模式: master 或 node
+#   JA3_DOMAIN          - 订阅域名 (node 模式必填)
+#   JA3_UPSTREAM        - 上游地址 (node 默认 127.0.0.1:8080)
 #   JA3_ADMIN_PASSWORD  - 管理面板密码 (默认随机生成)
 #   JA3_ACME_EMAIL      - ACME 邮箱 (默认空)
-#   JA3_WEBROOT         - SSPanel 网站根目录 (默认 /www/sspanel/public)
+#   JA3_WEBROOT         - SSPanel 网站根目录 (node 默认 /www/sspanel/public)
+#   JA3_MASTER_URL      - Master 地址 (node 模式可选，用于上报)
+#   JA3_NODE_TOKEN      - 节点令牌 (node 模式可选，用于上报)
+#   JA3_NODE_NAME       - 节点名称 (node 模式可选)
 #
 # 支持: Debian 11/12, Ubuntu 20.04/22.04/24.04, CentOS 8/9 (Stream), RHEL 8/9
 #
@@ -605,7 +614,7 @@ NGINXEOF
 
 # 生成配置文件
 setup_config() {
-    step "配置 JA3 Guard"
+    step "配置 JA3 Guard (${INSTALL_MODE} 模式)"
 
     mkdir -p "$DATA_DIR"
 
@@ -621,17 +630,68 @@ setup_config() {
         info "旧配置已备份"
     fi
 
-    # ---- 收集配置 ----
-    # 优先使用环境变量，否则交互询问
+    echo ""
+    echo "  请填写以下配置（回车使用默认值）:"
+    echo ""
+
+    # 管理密码（两种模式都需要）
+    local admin_password="${JA3_ADMIN_PASSWORD:-}"
+    if [[ -n "$admin_password" ]]; then
+        info "管理密码 (来自环境变量): ******"
+    else
+        ask "管理面板密码" admin_password "随机生成"
+        if [[ "$admin_password" == "随机生成" || -z "$admin_password" ]]; then
+            admin_password=$(head -c 24 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
+            info "已生成随机密码: $admin_password"
+        fi
+    fi
+
+    if [[ "$INSTALL_MODE" == "master" ]]; then
+        setup_config_master "$config_file" "$admin_password"
+    else
+        setup_config_node "$config_file" "$admin_password"
+    fi
+
+    chmod 600 "$config_file"
+    info "配置已写入: $config_file"
+}
+
+# Master 模式配置
+setup_config_master() {
+    local config_file="$1"
+    local admin_password="$2"
+
+    # ACME 邮箱（可选，Master 也可能需要 HTTPS）
+    local acme_email="${JA3_ACME_EMAIL:-}"
+    if [[ -z "$acme_email" ]]; then
+        ask "ACME 邮箱 (可留空)" acme_email ""
+    else
+        info "ACME 邮箱 (来自环境变量): $acme_email"
+    fi
+
+    cat > "$config_file" <<JSONEOF
+{
+  "mode": "master",
+  "listen_admin": ":8443",
+  "admin_password": "${admin_password}",
+  "guard_secret": "master-default",
+  "acme_email": "${acme_email}",
+  "data_dir": "${DATA_DIR}",
+  "log_enabled": true
+}
+JSONEOF
+}
+
+# Node 模式配置
+setup_config_node() {
+    local config_file="$1"
+    local admin_password="$2"
 
     # 域名 (必填)
     local domain="${JA3_DOMAIN:-}"
     if [[ -n "$domain" ]]; then
         info "域名 (来自环境变量): $domain"
     else
-        echo ""
-        echo "  请填写以下配置（回车使用默认值）:"
-        echo ""
         while [[ -z "$domain" ]]; do
             ask "订阅域名 (如 sub.example.com)" domain
             if [[ -z "$domain" ]]; then
@@ -647,24 +707,11 @@ setup_config() {
     else
         ask "上游地址" upstream "127.0.0.1:8080"
     fi
-    # 补全 http:// 前缀
     if [[ "$upstream" != http://* && "$upstream" != https://* ]]; then
         upstream="http://${upstream}"
     fi
 
-    # 管理密码
-    local admin_password="${JA3_ADMIN_PASSWORD:-}"
-    if [[ -n "$admin_password" ]]; then
-        info "管理密码 (来自环境变量): ******"
-    else
-        ask "管理面板密码" admin_password "随机生成"
-        if [[ "$admin_password" == "随机生成" || -z "$admin_password" ]]; then
-            admin_password=$(head -c 24 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
-            info "已生成随机密码: $admin_password"
-        fi
-    fi
-
-    # Guard Secret (总是自动生成)
+    # Guard Secret
     local guard_secret
     guard_secret=$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32)
     info "已生成 guard_secret: $guard_secret"
@@ -677,9 +724,29 @@ setup_config() {
         info "ACME 邮箱 (来自环境变量): $acme_email"
     fi
 
-    # 写入配置
+    # Master 上报配置（可选）
+    local master_url="${JA3_MASTER_URL:-}"
+    local node_token="${JA3_NODE_TOKEN:-}"
+    local node_name="${JA3_NODE_NAME:-}"
+
+    if [[ -z "$master_url" ]]; then
+        ask "Master 地址 (如 http://master-ip:8443，留空跳过上报)" master_url ""
+    fi
+
+    if [[ -n "$master_url" ]]; then
+        if [[ -z "$node_token" ]]; then
+            ask "节点令牌 (从 Master 面板获取)" node_token ""
+        fi
+        if [[ -z "$node_name" ]]; then
+            local hostname_default
+            hostname_default=$(hostname -s 2>/dev/null || echo "node-1")
+            ask "节点名称" node_name "$hostname_default"
+        fi
+    fi
+
     cat > "$config_file" <<JSONEOF
 {
+  "mode": "node",
   "domain": "${domain}",
   "upstream": "${upstream}",
   "listen_https": ":443",
@@ -688,21 +755,37 @@ setup_config() {
   "guard_secret": "${guard_secret}",
   "acme_email": "${acme_email}",
   "data_dir": "${DATA_DIR}",
-  "log_enabled": true
+  "log_enabled": true,
+  "master_url": "${master_url}",
+  "node_token": "${node_token}",
+  "node_name": "${node_name}",
+  "report_interval": 60
 }
 JSONEOF
-
-    chmod 600 "$config_file"
-    info "配置已写入: $config_file"
 }
 
 # 配置 systemd 服务
 setup_systemd() {
     step "配置 systemd 服务"
 
+    local svc_desc="JA3 Guard"
+    if [[ "$INSTALL_MODE" == "master" ]]; then
+        svc_desc="JA3 Guard Master - Node Management Panel"
+    else
+        svc_desc="JA3 Guard Node - TLS Fingerprint Reverse Proxy"
+    fi
+
+    local capabilities=""
+    if [[ "$INSTALL_MODE" == "node" ]]; then
+        capabilities="
+# 允许绑定低端口 (80, 443)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE"
+    fi
+
     cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<SERVICEEOF
 [Unit]
-Description=JA3 Guard - TLS Fingerprint Reverse Proxy
+Description=${svc_desc}
 Documentation=https://github.com/gkd-cloud/gkdcloud
 After=network-online.target
 Wants=network-online.target
@@ -720,11 +803,7 @@ ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=${DATA_DIR}
 PrivateTmp=true
-
-# 允许绑定低端口 (80, 443)
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-
+${capabilities}
 # 日志
 StandardOutput=journal
 StandardError=journal
@@ -742,20 +821,29 @@ SERVICEEOF
 setup_firewall() {
     step "配置防火墙"
 
+    local ports=()
+    if [[ "$INSTALL_MODE" == "master" ]]; then
+        ports=(8443)
+    else
+        ports=(80 443 8443)
+    fi
+
     if command -v ufw &>/dev/null; then
         info "检测到 ufw"
-        ufw allow 80/tcp  >/dev/null 2>&1 || true
-        ufw allow 443/tcp >/dev/null 2>&1 || true
-        info "已放行 80, 443 端口"
+        for port in "${ports[@]}"; do
+            ufw allow "${port}/tcp" >/dev/null 2>&1 || true
+        done
+        info "已放行端口: ${ports[*]}"
     elif command -v firewall-cmd &>/dev/null; then
         info "检测到 firewalld"
-        firewall-cmd --permanent --add-port=80/tcp  >/dev/null 2>&1 || true
-        firewall-cmd --permanent --add-port=443/tcp >/dev/null 2>&1 || true
+        for port in "${ports[@]}"; do
+            firewall-cmd --permanent --add-port="${port}/tcp" >/dev/null 2>&1 || true
+        done
         firewall-cmd --reload >/dev/null 2>&1 || true
-        info "已放行 80, 443 端口"
+        info "已放行端口: ${ports[*]}"
     else
         warn "未检测到防火墙工具 (ufw/firewalld)"
-        echo "  请手动确保 80 和 443 端口已放行"
+        echo "  请手动确保端口已放行: ${ports[*]}"
     fi
 }
 
@@ -780,54 +868,75 @@ start_service() {
 # 打印安装摘要
 print_summary() {
     local config_file="${DATA_DIR}/config.json"
-    local domain admin_password guard_secret upstream_port webroot
-
-    domain=$(grep -oP '"domain"\s*:\s*"\K[^"]+' "$config_file")
+    local admin_password
     admin_password=$(grep -oP '"admin_password"\s*:\s*"\K[^"]+' "$config_file")
-    guard_secret=$(grep -oP '"guard_secret"\s*:\s*"\K[^"]+' "$config_file")
-    upstream_port=$(grep -oP '"upstream"\s*:\s*"http://[^:]+:\K[0-9]+' "$config_file" || echo "8080")
-    webroot="${JA3_WEBROOT:-/www/sspanel/public}"
 
     echo ""
     echo -e "${GREEN}============================================================${NC}"
-    echo -e "${GREEN}  JA3 Guard 安装完成${NC}"
+    if [[ "$INSTALL_MODE" == "master" ]]; then
+        echo -e "${GREEN}  JA3 Guard Master 安装完成${NC}"
+    else
+        echo -e "${GREEN}  JA3 Guard Node 安装完成${NC}"
+    fi
     echo -e "${GREEN}============================================================${NC}"
     echo ""
-    echo -e "${CYAN}  [JA3 Guard]${NC}"
-    echo "  域名:          $domain"
+    echo -e "${CYAN}  [基本信息]${NC}"
+    echo "  安装模式:      $INSTALL_MODE"
     echo "  安装目录:      $INSTALL_DIR"
     echo "  数据目录:      $DATA_DIR"
     echo "  配置文件:      $DATA_DIR/config.json"
     echo "  二进制文件:    $BIN_PATH"
     echo ""
     echo -e "  管理面板密码:  ${YELLOW}${admin_password}${NC}"
-    echo -e "  Guard Secret:  ${YELLOW}${guard_secret}${NC}"
-    echo ""
-    echo -e "${CYAN}  [Nginx 上游]${NC}"
-    echo "  监听地址:      127.0.0.1:${upstream_port}"
-    echo "  网站根目录:    ${webroot}"
-    echo "  Nginx 日志:    /var/log/nginx/ja3guard-upstream-*.log"
-    echo ""
-    echo -e "${CYAN}  [请求链路]${NC}"
-    echo "  用户 → :443 (JA3 Guard) → 127.0.0.1:${upstream_port} (Nginx) → PHP-FPM"
-    echo ""
-    echo "  ⚠ 请将 guard_secret 填入 SSPanel 的 config/domainReplace.php"
-    echo "  ⚠ 请将 SSPanel 代码部署到 ${webroot}"
+
+    if [[ "$INSTALL_MODE" == "master" ]]; then
+        echo ""
+        echo -e "${CYAN}  [Master 模式]${NC}"
+        echo "  管理面板:      http://服务器IP:8443"
+        echo "  功能:"
+        echo "    - 管理子节点 (添加/删除/SSH)"
+        echo "    - 查看所有节点状态和日志"
+        echo "    - 管理白名单并同步到节点"
+        echo ""
+        echo -e "${CYAN}  下一步:${NC}"
+        echo "    1. 访问管理面板，进入 Nodes 标签页"
+        echo "    2. 添加子节点 (填写 IP、SSH 信息)"
+        echo "    3. 获取节点 Token"
+        echo "    4. 在子节点服务器运行:"
+        echo -e "       ${YELLOW}curl -fsSL <url>/install.sh | sudo bash -s -- node${NC}"
+    else
+        local domain guard_secret upstream_port webroot
+        domain=$(grep -oP '"domain"\s*:\s*"\K[^"]+' "$config_file")
+        guard_secret=$(grep -oP '"guard_secret"\s*:\s*"\K[^"]+' "$config_file")
+        upstream_port=$(grep -oP '"upstream"\s*:\s*"http://[^:]+:\K[0-9]+' "$config_file" || echo "8080")
+        webroot="${JA3_WEBROOT:-/www/sspanel/public}"
+
+        echo -e "  Guard Secret:  ${YELLOW}${guard_secret}${NC}"
+        echo ""
+        echo -e "${CYAN}  [Node 模式]${NC}"
+        echo "  域名:          $domain"
+        echo ""
+        echo -e "${CYAN}  [Nginx 上游]${NC}"
+        echo "  监听地址:      127.0.0.1:${upstream_port}"
+        echo "  网站根目录:    ${webroot}"
+        echo ""
+        echo -e "${CYAN}  [请求链路]${NC}"
+        echo "  用户 → :443 (JA3 Guard) → 127.0.0.1:${upstream_port} (Nginx) → PHP-FPM"
+        echo ""
+        echo "  ⚠ 请将 guard_secret 填入 SSPanel 的 config/domainReplace.php"
+        echo "  ⚠ 请将 SSPanel 代码部署到 ${webroot}"
+    fi
+
     echo ""
     echo -e "${CYAN}  常用命令:${NC}"
     echo "    查看状态:    systemctl status ja3guard"
     echo "    查看日志:    journalctl -u ja3guard -f"
     echo "    重启服务:    systemctl restart ja3guard"
     echo "    停止服务:    systemctl stop ja3guard"
-    echo "    Nginx 日志:  tail -f /var/log/nginx/ja3guard-upstream-error.log"
     echo ""
-    echo -e "${CYAN}  访问管理面板 (通过 SSH 隧道):${NC}"
+    echo -e "${CYAN}  访问管理面板:${NC}"
     echo "    ssh -L 8443:localhost:8443 user@your-server"
     echo "    浏览器打开: http://localhost:8443"
-    echo ""
-    echo -e "${CYAN}  验证:${NC}"
-    echo "    curl -I https://${domain}"
-    echo "    curl http://127.0.0.1:${upstream_port}/  (直接测上游)"
     echo ""
     echo -e "${GREEN}============================================================${NC}"
 }
@@ -920,10 +1029,20 @@ upgrade() {
 # ============================================================
 # 主流程
 # ============================================================
+
+# 安装模式: 通过参数或环境变量传入
+INSTALL_MODE="${JA3_MODE:-node}"
+
 main() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
     echo -e "${CYAN}║     JA3 Guard 一键部署脚本 (裸机版)     ║${NC}"
+    echo -e "${CYAN}║                                          ║${NC}"
+    if [[ "$INSTALL_MODE" == "master" ]]; then
+    echo -e "${CYAN}║         模式: ${YELLOW}MASTER (管理面板)${CYAN}          ║${NC}"
+    else
+    echo -e "${CYAN}║         模式: ${GREEN}NODE (JA3 反代节点)${CYAN}       ║${NC}"
+    fi
     echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
     echo ""
 
@@ -932,11 +1051,19 @@ main() {
     detect_arch
     install_deps
     setup_go
-    setup_nginx
-    check_ports
+
+    if [[ "$INSTALL_MODE" == "node" ]]; then
+        setup_nginx
+        check_ports
+    fi
+
     build_app
     setup_config
-    setup_nginx_vhost
+
+    if [[ "$INSTALL_MODE" == "node" ]]; then
+        setup_nginx_vhost
+    fi
+
     setup_systemd
     setup_firewall
     start_service
@@ -945,6 +1072,14 @@ main() {
 
 # 处理命令行参数
 case "${1:-}" in
+    master)
+        INSTALL_MODE="master"
+        main
+        ;;
+    node)
+        INSTALL_MODE="node"
+        main
+        ;;
     uninstall|remove)
         check_root
         uninstall
@@ -956,7 +1091,25 @@ case "${1:-}" in
         setup_go
         upgrade
         ;;
+    help|-h|--help)
+        echo "用法: $0 [command]"
+        echo ""
+        echo "Commands:"
+        echo "  master     安装 Master 管理面板（不含 Nginx/PHP）"
+        echo "  node       安装 Node 反代节点（含 Nginx/PHP，默认）"
+        echo "  upgrade    升级现有安装"
+        echo "  uninstall  卸载 JA3 Guard"
+        echo "  help       显示帮助"
+        echo ""
+        echo "远程安装:"
+        echo "  curl -fsSL <url>/install.sh | sudo bash -s -- master"
+        echo "  curl -fsSL <url>/install.sh | sudo bash -s -- node"
+        ;;
     *)
+        # 默认: 询问模式或使用环境变量
+        if [[ -n "${JA3_MODE:-}" ]]; then
+            INSTALL_MODE="$JA3_MODE"
+        fi
         main
         ;;
 esac
