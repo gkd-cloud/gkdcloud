@@ -720,6 +720,8 @@ function renderNodes() {
         <div class="node-stat"><div class="num red">${st.blocked_count || 0}</div><div class="lbl">Blocked</div></div>
       </div>` : ''}
       <div class="node-actions">
+        <button class="btn sm primary" onclick="sshTest('${escHtml(n.id)}',this)">Test SSH</button>
+        <button class="btn sm" onclick="sshInfo('${escHtml(n.id)}')">System Info</button>
         <button class="btn sm" onclick="showNodeToken('${escHtml(n.id)}')">Token</button>
         <button class="btn sm" onclick="editNode('${escHtml(n.id)}')">Edit</button>
         <button class="btn sm danger" onclick="deleteNode('${escHtml(n.id)}','${escHtml(n.name)}')">Delete</button>
@@ -823,6 +825,67 @@ async function deleteNode(id, name) {
     return;
   }
   await loadNodes();
+}
+
+// --- SSH Operations ---
+async function sshTest(id, btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Testing...';
+  btn.disabled = true;
+  try {
+    const res = await api('api/nodes/' + encodeURIComponent(id) + '/ssh/test', {method: 'POST'});
+    if (res.ok) {
+      btn.textContent = 'OK!';
+      btn.style.color = 'var(--green)';
+    } else {
+      btn.textContent = 'Failed';
+      btn.style.color = 'var(--red)';
+      alert('SSH Test Failed: ' + res.error);
+    }
+  } catch (e) {
+    btn.textContent = 'Error';
+    btn.style.color = 'var(--red)';
+  }
+  setTimeout(() => { btn.textContent = orig; btn.style.color = ''; btn.disabled = false; }, 3000);
+}
+
+async function sshInfo(id) {
+  const node = nodesList.find(n => n.id === id);
+  if (!node) return;
+
+  const html = `
+    <div class="modal-overlay" id="sshinfo-modal" onclick="if(event.target===this)this.remove()" style="display:flex">
+      <div class="modal" style="width:480px">
+        <div class="modal-header">
+          <h3>System Info: ${escHtml(node.name)}</h3>
+          <button class="btn sm" onclick="document.getElementById('sshinfo-modal').remove()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="text-align:center;padding:20px;color:var(--text2)">Connecting via SSH...</div>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  try {
+    const res = await api('api/nodes/' + encodeURIComponent(id) + '/ssh/info');
+    const modal = document.getElementById('sshinfo-modal');
+    if (!modal) return;
+    const body = modal.querySelector('.modal-body');
+    if (res.error) {
+      body.innerHTML = `<div style="color:var(--red);padding:12px">${escHtml(res.error)}</div>`;
+      return;
+    }
+    body.innerHTML = Object.entries(res).map(([k,v]) => `
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span style="color:var(--text2)">${escHtml(k)}</span>
+        <span>${escHtml(v)}</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    const modal = document.getElementById('sshinfo-modal');
+    if (modal) modal.querySelector('.modal-body').innerHTML = `<div style="color:var(--red);padding:12px">Connection failed: ${escHtml(e.message)}</div>`;
+  }
 }
 
 function showNodeToken(id) {

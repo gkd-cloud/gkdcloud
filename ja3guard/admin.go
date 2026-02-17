@@ -80,6 +80,18 @@ func (h *AdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "api/nodes/") && r.Method == http.MethodPut:
 		id := strings.TrimPrefix(path, "api/nodes/")
 		h.handleNodeUpdate(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/ssh/test") && r.Method == http.MethodPost:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		id = strings.TrimSuffix(id, "/ssh/test")
+		h.handleNodeSSHTest(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/ssh/exec") && r.Method == http.MethodPost:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		id = strings.TrimSuffix(id, "/ssh/exec")
+		h.handleNodeSSHExec(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/ssh/info") && r.Method == http.MethodGet:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		id = strings.TrimSuffix(id, "/ssh/info")
+		h.handleNodeSSHInfo(w, r, id)
 	case strings.HasPrefix(path, "api/nodes/") && r.Method == http.MethodDelete:
 		id := strings.TrimPrefix(path, "api/nodes/")
 		h.handleNodeDelete(w, r, id)
@@ -289,6 +301,93 @@ func (h *AdminHandler) handleNodeDelete(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	h.jsonOK(w, map[string]string{"status": "ok"})
+}
+
+// ============================================================
+// SSH 远程操作 API
+// ============================================================
+
+func (h *AdminHandler) handleNodeSSHTest(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	client := NewSSHClient(node)
+	if err := client.TestConnection(); err != nil {
+		h.jsonOK(w, map[string]interface{}{
+			"ok":    false,
+			"error": err.Error(),
+		})
+		return
+	}
+	h.jsonOK(w, map[string]interface{}{
+		"ok":      true,
+		"message": "SSH 连接成功",
+	})
+}
+
+func (h *AdminHandler) handleNodeSSHExec(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	var req struct {
+		Command string `json:"command"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.jsonErr(w, "请求格式错误", 400)
+		return
+	}
+	if req.Command == "" {
+		h.jsonErr(w, "命令不能为空", 400)
+		return
+	}
+
+	client := NewSSHClient(node)
+	output, err := client.Exec(req.Command)
+	if err != nil {
+		h.jsonOK(w, map[string]interface{}{
+			"ok":     false,
+			"output": err.Error(),
+		})
+		return
+	}
+	h.jsonOK(w, map[string]interface{}{
+		"ok":     true,
+		"output": output,
+	})
+}
+
+func (h *AdminHandler) handleNodeSSHInfo(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	client := NewSSHClient(node)
+	info, err := client.GetSystemInfo()
+	if err != nil {
+		h.jsonErr(w, err.Error(), 500)
+		return
+	}
+	h.jsonOK(w, info)
 }
 
 // ============================================================
