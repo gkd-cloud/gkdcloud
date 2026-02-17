@@ -8,6 +8,7 @@
  *
  * 功能: 解析 Base64 编码的订阅内容，按配置把节点连接域名替换为指定域名
  * 支持协议: vmess / ss / ssr / trojan / vless / hysteria2(hy2)
+ * 安全: 由 JA3 Guard (Go 服务) 在 TLS 层验证客户端指纹，PHP 只需检查信任 header
  */
 
 declare(strict_types=1);
@@ -27,14 +28,6 @@ final class DomainReplacer
     // ============================================================
     //  对外入口
     // ============================================================
-
-    /**
-     * 判断 User-Agent 是否为 Shadowrocket
-     */
-    public static function isShadowrocket(string $ua): bool
-    {
-        return stripos($ua, 'Shadowrocket') !== false;
-    }
 
     /**
      * 从配置文件加载域名映射表

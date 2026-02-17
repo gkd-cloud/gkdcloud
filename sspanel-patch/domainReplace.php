@@ -5,18 +5,20 @@
  *
  * 放置位置: config/domainReplace.php
  *
- * 当 Shadowrocket 客户端请求订阅时，节点中的旧域名会被替换为新域名
- * 其他客户端不受影响，原样返回
+ * 通过 JA3 Guard 服务验证客户端 TLS 指纹，只有受信任的客户端才会收到隐藏域名
+ * 未匹配 JA3 指纹的请求一律返回原始域名（宁可错杀，不可放过）
  *
- * 用法: 在 mapping 中添加 '旧域名' => '新域名'
- * 支持泛域名: '*.old.com' => '*.new.com' 自动匹配所有子域名
- * 精确匹配优先于泛域名匹配
- * 可添加多条规则，每条独立生效
+ * 架构: Client → JA3 Guard (Go, 提取 JA3) → Nginx → PHP
+ * JA3 Guard 通过 X-JA3-Trusted + X-Guard-Secret header 传递验证结果
  */
 
 return [
     // true = 启用替换, false = 关闭（所有客户端都原样返回）
     'enabled' => true,
+
+    // JA3 Guard 共享密钥（必须与 JA3 Guard config.json 中的 guard_secret 一致）
+    // 用于验证请求确实来自 JA3 Guard，防止绕过直连 Nginx 伪造 header
+    'guard_secret' => '',
 
     // 域名映射表
     'mapping' => [

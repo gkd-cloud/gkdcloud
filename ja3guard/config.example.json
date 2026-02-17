@@ -1,0 +1,11 @@
+{
+  "domain": "sub.example.com",
+  "upstream": "http://host.docker.internal:8080",
+  "listen_https": ":443",
+  "listen_admin": ":8443",
+  "admin_password": "change-me-to-a-strong-password",
+  "guard_secret": "change-me-to-a-random-string",
+  "acme_email": "admin@example.com",
+  "data_dir": "/data",
+  "log_enabled": true
+}

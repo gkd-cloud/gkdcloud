@@ -171,18 +171,24 @@ class LinkController extends BaseController
                     $class = ('get' . $SubscribeExtend['class']);
                     $content = self::$class($user, $query_value, $opts, $Rule);
 
-                    // --- Shadowrocket iOS 域名替换 开始 ---
-                    $ua = $request->getHeaderLine('User-Agent');
+                    // --- JA3 Guard 域名替换 开始 ---
+                    // JA3 Guard (Go 服务) 负责提取 TLS 指纹并查白名单
+                    // PHP 只需检查 X-JA3-Trusted header（通过共享密钥验证来源）
                     $replaceConfig = require BASE_PATH . '/config/domainReplace.php';
                     if (
                         $replaceConfig['enabled']
-                        && DomainReplacer::isShadowrocket($ua)
                         && !empty($replaceConfig['mapping'])
                     ) {
-                        $replacer = new DomainReplacer($replaceConfig['mapping']);
-                        $content = $replacer->replaceBase64($content);
+                        $guardSecret = $replaceConfig['guard_secret'] ?? '';
+                        $reqSecret = $request->getHeaderLine('X-Guard-Secret');
+                        $isTrusted = $request->getHeaderLine('X-JA3-Trusted') === '1';
+
+                        if ($guardSecret !== '' && hash_equals($guardSecret, $reqSecret) && $isTrusted) {
+                            $replacer = new DomainReplacer($replaceConfig['mapping']);
+                            $content = $replacer->replaceBase64($content);
+                        }
                     }
-                    // --- Shadowrocket iOS 域名替换 结束 ---
+                    // --- JA3 Guard 域名替换 结束 ---
 
                     $getBody = self::getBody(
                         $user,
