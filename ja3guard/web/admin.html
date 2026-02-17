@@ -258,6 +258,10 @@ input[type=text]:focus { border-color: var(--blue); }
       <input type="text" id="node-name" placeholder="e.g. hk-01">
       <label>Host (IP or Domain)</label>
       <input type="text" id="node-host" placeholder="e.g. 1.2.3.4">
+      <label>Domain <span style="color:var(--text3);font-size:11px;text-transform:none">— 节点服务域名，用于下发配置和证书申请</span></label>
+      <input type="text" id="node-domain" placeholder="如 sub.example.com（可选）">
+      <label>Upstream <span style="color:var(--text3);font-size:11px;text-transform:none">— 上游业务服务器地址</span></label>
+      <input type="text" id="node-upstream" placeholder="如 10.0.0.5:80 或 203.0.113.1:80（可选）">
       <label>SSH Port</label>
       <input type="text" id="node-ssh-port" placeholder="22" value="22">
       <label>SSH User</label>
@@ -561,11 +565,29 @@ function nxNewSite() {
   }
 
   const template = `# ${name} - Created via JA3 Guard
+#
+# 这是 JA3 Guard 的上游 Nginx 站点配置
+# 请求链路: 用户 → :443 (JA3 Guard) → 127.0.0.1:8080 (本站点) → PHP-FPM
+#
+# 需要修改的地方:
+#   1. server_name  → 改成你的订阅域名
+#   2. root         → 改成 SSPanel 的 public 目录路径
+#   3. fastcgi_pass → 改成实际的 PHP-FPM socket 路径
+#      查找命令: ls /run/php/php*-fpm.sock
+#      常见路径:
+#        Debian/Ubuntu: unix:/run/php/php8.2-fpm.sock
+#        CentOS/RHEL:   unix:/var/run/php-fpm/www.sock
+#        宝塔面板:      unix:/tmp/php-cgi-82.sock
+
 server {
+    # 仅监听本地，端口需与 JA3 Guard config.json 中的 upstream 一致
     listen 127.0.0.1:8080;
+
+    # 改成你的订阅域名
     server_name example.com;
 
-    root /www/example/public;
+    # 改成 SSPanel 网站根目录（注意要指向 public 子目录）
+    root /www/sspanel/public;
     index index.php index.html;
 
     location / {
@@ -574,12 +596,14 @@ server {
 
     location ~ \\.php$ {
         try_files $uri =404;
-        fastcgi_pass unix:/run/php/php-fpm.sock;
+        # 改成你的 PHP-FPM socket 路径（参考上方说明）
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         include fastcgi_params;
     }
 
+    # 禁止访问隐藏文件（.env, .git 等）
     location ~ /\\. {
         deny all;
     }
@@ -723,8 +747,8 @@ function renderNodes() {
       <div class="node-info">
         Host: <span>${escHtml(n.host)}:${n.ssh_port}</span><br>
         Auth: <span>${n.auth_type === 'key' ? 'SSH Key' : 'Password'}</span> (${escHtml(n.ssh_user)})<br>
-        ${st.domain ? `Domain: <span>${escHtml(st.domain)}</span><br>` : ''}
-        ${st.upstream ? `Upstream: <span>${escHtml(st.upstream)}</span><br>` : ''}
+        ${n.domain ? `Domain: <span>${escHtml(n.domain)}</span><br>` : (st.domain ? `Domain: <span>${escHtml(st.domain)}</span><br>` : '')}
+        ${n.upstream ? `Upstream: <span>${escHtml(n.upstream)}</span><br>` : (st.upstream ? `Upstream: <span>${escHtml(st.upstream)}</span><br>` : '')}
         ${n.last_heartbeat ? `Last seen: <span>${escHtml(n.last_heartbeat)}</span>` : 'Never connected'}
       </div>
       ${online && st ? `
@@ -733,12 +757,15 @@ function renderNodes() {
         <div class="node-stat"><div class="num green">${st.trusted_count || 0}</div><div class="lbl">Trusted</div></div>
         <div class="node-stat"><div class="num red">${st.blocked_count || 0}</div><div class="lbl">Blocked</div></div>
       </div>` : ''}
-      <div class="node-actions">
-        <button class="btn sm primary" onclick="sshTest('${escHtml(n.id)}',this)">Test SSH</button>
-        <button class="btn sm" onclick="sshInfo('${escHtml(n.id)}')">System Info</button>
+      <div class="node-actions" style="flex-wrap:wrap">
+        <button class="btn sm warn" onclick="pushConfig('${escHtml(n.id)}','${escHtml(n.name)}')">推送配置</button>
+        <button class="btn sm warn" onclick="deployNode('${escHtml(n.id)}','${escHtml(n.name)}')">远程部署</button>
+        <button class="btn sm" onclick="syncNodeWL('${escHtml(n.id)}',this)">同步白名单</button>
+        <button class="btn sm primary" onclick="sshTest('${escHtml(n.id)}',this)">测试SSH</button>
+        <button class="btn sm" onclick="sshInfo('${escHtml(n.id)}')">系统信息</button>
         <button class="btn sm" onclick="showNodeToken('${escHtml(n.id)}')">Token</button>
-        <button class="btn sm" onclick="editNode('${escHtml(n.id)}')">Edit</button>
-        <button class="btn sm danger" onclick="deleteNode('${escHtml(n.id)}','${escHtml(n.name)}')">Delete</button>
+        <button class="btn sm" onclick="editNode('${escHtml(n.id)}')">编辑</button>
+        <button class="btn sm danger" onclick="deleteNode('${escHtml(n.id)}','${escHtml(n.name)}')">删除</button>
       </div>
     </div>`;
   }).join('');
@@ -757,6 +784,8 @@ function showNodeModal(editData) {
     document.getElementById('node-edit-id').value = editData.id || '';
     document.getElementById('node-name').value = editData.name || '';
     document.getElementById('node-host').value = editData.host || '';
+    document.getElementById('node-domain').value = editData.domain || '';
+    document.getElementById('node-upstream').value = editData.upstream || '';
     document.getElementById('node-ssh-port').value = editData.ssh_port || 22;
     document.getElementById('node-ssh-user').value = editData.ssh_user || 'root';
     document.getElementById('node-auth-type').value = editData.auth_type || 'password';
@@ -768,6 +797,8 @@ function showNodeModal(editData) {
     document.getElementById('node-edit-id').value = '';
     document.getElementById('node-name').value = '';
     document.getElementById('node-host').value = '';
+    document.getElementById('node-domain').value = '';
+    document.getElementById('node-upstream').value = '';
     document.getElementById('node-ssh-port').value = '22';
     document.getElementById('node-ssh-user').value = 'root';
     document.getElementById('node-auth-type').value = 'password';
@@ -787,6 +818,8 @@ async function saveNode() {
   const payload = {
     name: document.getElementById('node-name').value.trim(),
     host: document.getElementById('node-host').value.trim(),
+    domain: document.getElementById('node-domain').value.trim(),
+    upstream: document.getElementById('node-upstream').value.trim(),
     ssh_port: parseInt(document.getElementById('node-ssh-port').value) || 22,
     ssh_user: document.getElementById('node-ssh-user').value.trim() || 'root',
     auth_type: document.getElementById('node-auth-type').value,
@@ -932,6 +965,173 @@ function showNodeToken(id) {
       </div>
     </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+}
+
+// --- 推送配置 ---
+async function pushConfig(id, name) {
+  const node = nodesList.find(n => n.id === id);
+  if (!node) return;
+
+  const html = `
+    <div class="modal-overlay" id="pushcfg-modal" onclick="if(event.target===this)this.remove()" style="display:flex">
+      <div class="modal" style="width:480px">
+        <div class="modal-header">
+          <h3>推送配置: ${escHtml(name)}</h3>
+          <button class="btn sm" onclick="document.getElementById('pushcfg-modal').remove()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px">
+            将生成 config.json 并通过 SSH 推送到节点。如已运行 ja3guard 服务将自动重启。
+          </p>
+          <label>Domain <span style="color:var(--text3);font-size:11px;text-transform:none">— 节点服务域名</span></label>
+          <input type="text" id="pushcfg-domain" value="${escHtml(node.domain || '')}" placeholder="sub.example.com（必填）">
+          <label>Upstream <span style="color:var(--text3);font-size:11px;text-transform:none">— 上游业务服务器地址</span></label>
+          <input type="text" id="pushcfg-upstream" value="${escHtml(node.upstream || '')}" placeholder="10.0.0.5:80（必填）">
+          <label>Admin Password <span style="color:var(--text3);font-size:11px;text-transform:none">— 留空自动生成</span></label>
+          <input type="text" id="pushcfg-pass" placeholder="留空自动生成随机密码">
+        </div>
+        <div class="modal-footer">
+          <button class="btn" onclick="document.getElementById('pushcfg-modal').remove()">取消</button>
+          <button class="btn primary" onclick="doPushConfig('${escHtml(id)}')">推送</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function doPushConfig(id) {
+  const modal = document.getElementById('pushcfg-modal');
+  const domain = document.getElementById('pushcfg-domain').value.trim();
+  const upstream = document.getElementById('pushcfg-upstream').value.trim();
+  const pass = document.getElementById('pushcfg-pass').value.trim();
+
+  if (!domain) return alert('Domain 不能为空');
+  if (!upstream) return alert('Upstream 不能为空');
+
+  const footer = modal.querySelector('.modal-footer');
+  footer.innerHTML = '<span style="color:var(--text2);font-size:13px">推送中...</span>';
+
+  try {
+    const res = await api('api/nodes/' + encodeURIComponent(id) + '/config/push', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({domain, upstream, admin_password: pass})
+    });
+    if (res.error) {
+      footer.innerHTML = `<span style="color:var(--red);font-size:13px">失败: ${escHtml(res.error)}</span>`;
+      return;
+    }
+    modal.querySelector('.modal-body').innerHTML = `
+      <div style="color:var(--green);margin-bottom:12px;font-size:14px">配置推送成功</div>
+      <label>节点管理面板密码</label>
+      <div class="token-display" onclick="navigator.clipboard.writeText('${escHtml(res.admin_password)}');this.style.borderColor='var(--green)';setTimeout(()=>this.style.borderColor='',1000)">${escHtml(res.admin_password)}</div>
+      <p style="font-size:12px;color:var(--text2);margin-top:8px">点击上方密码可复制。${escHtml(res.restart_output || '')}</p>
+    `;
+    footer.innerHTML = '<button class="btn" onclick="document.getElementById(\'pushcfg-modal\').remove()">关闭</button>';
+  } catch (e) {
+    footer.innerHTML = `<span style="color:var(--red);font-size:13px">网络错误: ${escHtml(e.message)}</span>`;
+  }
+}
+
+// --- 远程部署 ---
+async function deployNode(id, name) {
+  const node = nodesList.find(n => n.id === id);
+  if (!node) return;
+
+  const html = `
+    <div class="modal-overlay" id="deploy-modal" onclick="if(event.target===this)this.remove()" style="display:flex">
+      <div class="modal" style="width:560px">
+        <div class="modal-header">
+          <h3>远程部署: ${escHtml(name)}</h3>
+          <button class="btn sm" onclick="document.getElementById('deploy-modal').remove()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px">
+            将通过 SSH 上传安装脚本并自动执行。安装过程可能需要几分钟，请耐心等待。
+          </p>
+          <label>Domain <span style="color:var(--text3);font-size:11px;text-transform:none">— 节点服务域名（必填）</span></label>
+          <input type="text" id="deploy-domain" value="${escHtml(node.domain || '')}" placeholder="sub.example.com">
+          <label>Upstream <span style="color:var(--text3);font-size:11px;text-transform:none">— 上游业务服务器地址</span></label>
+          <input type="text" id="deploy-upstream" value="${escHtml(node.upstream || '')}" placeholder="10.0.0.5:80（纯反代模式必填）">
+          <label>Admin Password <span style="color:var(--text3);font-size:11px;text-transform:none">— 留空自动生成</span></label>
+          <input type="text" id="deploy-pass" placeholder="留空自动生成随机密码">
+          <div style="margin-top:12px">
+            <label style="display:inline;cursor:pointer">
+              <input type="checkbox" id="deploy-skip-nginx" checked style="width:auto;margin-right:6px">
+              <span style="font-size:13px;color:var(--text)">跳过 Nginx/PHP 安装（纯反代模式，上游在远程服务器）</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" onclick="document.getElementById('deploy-modal').remove()">取消</button>
+          <button class="btn warn" onclick="doDeploy('${escHtml(id)}')">开始部署</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function doDeploy(id) {
+  const modal = document.getElementById('deploy-modal');
+  const domain = document.getElementById('deploy-domain').value.trim();
+  const upstream = document.getElementById('deploy-upstream').value.trim();
+  const pass = document.getElementById('deploy-pass').value.trim();
+  const skipNginx = document.getElementById('deploy-skip-nginx').checked;
+
+  if (!domain) return alert('Domain 不能为空');
+
+  const footer = modal.querySelector('.modal-footer');
+  footer.innerHTML = '<span style="color:var(--yellow);font-size:13px">部署中，请耐心等待（可能需要数分钟）...</span>';
+
+  try {
+    const res = await api('api/nodes/' + encodeURIComponent(id) + '/deploy', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({domain, upstream, admin_password: pass, skip_nginx: skipNginx})
+    });
+    const body = modal.querySelector('.modal-body');
+    if (res.ok) {
+      body.innerHTML = `
+        <div style="color:var(--green);margin-bottom:8px;font-size:14px">部署成功</div>
+        <label>节点管理面板密码</label>
+        <div class="token-display" onclick="navigator.clipboard.writeText('${escHtml(res.admin_password)}');this.style.borderColor='var(--green)';setTimeout(()=>this.style.borderColor='',1000)">${escHtml(res.admin_password)}</div>
+        <label style="margin-top:12px">安装输出</label>
+        <textarea readonly style="min-height:200px;font-size:11px;line-height:1.5">${escHtml(res.output || '')}</textarea>
+      `;
+    } else {
+      body.innerHTML = `
+        <div style="color:var(--red);margin-bottom:8px;font-size:14px">部署失败: ${escHtml(res.error || '未知错误')}</div>
+        <label>安装输出</label>
+        <textarea readonly style="min-height:200px;font-size:11px;line-height:1.5">${escHtml(res.output || '')}</textarea>
+        ${res.admin_password ? `<label>生成的密码</label><div class="token-display">${escHtml(res.admin_password)}</div>` : ''}
+      `;
+    }
+    footer.innerHTML = '<button class="btn" onclick="document.getElementById(\'deploy-modal\').remove()">关闭</button>';
+  } catch (e) {
+    footer.innerHTML = `<span style="color:var(--red);font-size:13px">网络错误: ${escHtml(e.message)}</span>`;
+  }
+}
+
+// --- 单节点白名单同步 ---
+async function syncNodeWL(id, btn) {
+  const orig = btn.textContent;
+  btn.textContent = '同步中...';
+  btn.disabled = true;
+  try {
+    const res = await api('api/nodes/' + encodeURIComponent(id) + '/whitelist/sync', {method: 'POST'});
+    if (res.ok) {
+      btn.textContent = '已同步';
+      btn.style.color = 'var(--green)';
+    } else {
+      btn.textContent = '失败';
+      btn.style.color = 'var(--red)';
+      alert('同步失败: ' + (res.error || '未知错误'));
+    }
+  } catch (e) {
+    btn.textContent = '错误';
+    btn.style.color = 'var(--red)';
+  }
+  setTimeout(() => { btn.textContent = orig; btn.style.color = ''; btn.disabled = false; }, 3000);
 }
 
 // Init
