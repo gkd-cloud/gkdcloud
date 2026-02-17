@@ -1,0 +1,53 @@
+# GKD Cloud Client - 域名伪装规则配置示例
+# 此文件定义节点域名的伪装/替换规则
+
+# 总开关
+enable: false  # 默认关闭，用户在 UI 中手动开启
+
+# 域名替换规则
+# match_type 支持: exact(精确), suffix(后缀), prefix(前缀), wildcard(通配符), regex(正则)
+rules:
+  # 示例：精确匹配替换
+  # - match_type: "exact"
+  #   pattern: "node1.real-domain.com"
+  #   replace: "cdn1.masked-domain.com"
+  #   comment: "节点1 域名伪装"
+
+  # 示例：后缀匹配批量替换
+  # - match_type: "suffix"
+  #   pattern: ".real-domain.com"
+  #   replace: ".cdn-masked.com"
+  #   comment: "批量替换 real-domain.com 下的所有子域名"
+
+  # 示例：正则匹配
+  # - match_type: "regex"
+  #   pattern: "node(\\d+)\\.example\\.com"
+  #   replace: "cdn-$1.masked.com"
+  #   comment: "正则批量替换带编号的节点域名"
+
+  # 示例：通配符匹配
+  # - match_type: "wildcard"
+  #   pattern: "*.us.example.com"
+  #   replace: "us-cdn.masked.com"
+  #   comment: "所有美国节点域名伪装"
+
+# 端口映射规则
+# 将常见被封端口映射到非标准端口
+port_mapping:
+  # - original_port: 443
+  #   mapped_port: 8443
+  #   comment: "443 -> 8443 避免常见端口检测"
+  # - original_port: 80
+  #   mapped_port: 8080
+  #   server_match: "*.example.com"  # 仅对匹配的服务器生效
+  #   comment: "HTTP 端口映射"
+
+# SNI 重写规则
+# 将 TLS 握手中的 SNI 伪装为合法域名
+sni_rewrite:
+  # - original_sni: "node1.real-domain.com"
+  #   new_sni: "www.microsoft.com"
+  #   comment: "SNI 伪装为微软域名"
+  # - original_sni: "node2.real-domain.com"
+  #   new_sni: "www.apple.com"
+  #   comment: "SNI 伪装为苹果域名"
