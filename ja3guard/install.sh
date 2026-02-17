@@ -60,6 +60,16 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 step()  { echo -e "\n${CYAN}▶ $*${NC}"; }
 
+# 读取用户输入的统一入口
+# stdin 是终端时直接读，否则从 /dev/tty 读（curl | bash 场景）
+_read_input() {
+    if [[ -t 0 ]]; then
+        read "$@"
+    else
+        read "$@" </dev/tty
+    fi
+}
+
 # 从终端读取用户输入（兼容 curl | bash）
 # 用法: ask "提示文字" 变量名 [默认值]
 ask() {
@@ -72,11 +82,10 @@ ask() {
     fi
 
     local answer=""
-    # 尝试从 /dev/tty 读取（curl | bash 场景）
-    if read -rp "  ${prompt}: " answer </dev/tty 2>/dev/null; then
+    if _read_input -rp "  ${prompt}: " answer 2>/dev/null; then
         : # 读取成功
     else
-        # /dev/tty 不可用（如 CI 环境），使用默认值
+        # 读取失败（如 CI 环境），使用默认值
         answer=""
     fi
 
@@ -98,7 +107,7 @@ confirm() {
     [[ "$default" == "y" ]] && hint="Y/n"
 
     local answer=""
-    if read -rp "  ${prompt} [${hint}] " answer </dev/tty 2>/dev/null; then
+    if _read_input -rp "  ${prompt} [${hint}] " answer 2>/dev/null; then
         : # 读取成功
     else
         answer="$default"
