@@ -3,7 +3,9 @@ package main
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -69,6 +71,8 @@ func (h *AdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleSettingsUpdate(w, r)
 	case path == "api/logs/cleanup" && r.Method == http.MethodPost:
 		h.handleCleanup(w, r)
+	case path == "api/whitelist/sync" && r.Method == http.MethodPost:
+		h.handleWhitelistSync(w, r)
 	// --- 节点管理 (Master) ---
 	case path == "api/nodes" && r.Method == http.MethodGet:
 		h.handleNodeList(w, r)
@@ -227,6 +231,54 @@ func (h *AdminHandler) handleCleanup(w http.ResponseWriter, r *http.Request) {
 	}
 	h.store.Cleanup(days)
 	h.jsonOK(w, map[string]string{"status": "ok"})
+}
+
+// handleWhitelistSync 将白名单推送到所有在线节点（通过 SSH 写入）
+func (h *AdminHandler) handleWhitelistSync(w http.ResponseWriter, r *http.Request) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "仅在 master 模式下可用", 400)
+		return
+	}
+
+	whitelist := h.store.GetWhitelist()
+	wlJSON, _ := json.MarshalIndent(whitelist, "", "  ")
+
+	nodes := h.nodeStore.ListNodes()
+	results := make([]map[string]interface{}, 0, len(nodes))
+
+	for _, n := range nodes {
+		nodeID, _ := n["id"].(string)
+		nodeName, _ := n["name"].(string)
+
+		node, err := h.nodeStore.GetNode(nodeID)
+		if err != nil {
+			results = append(results, map[string]interface{}{
+				"name": nodeName, "ok": false, "error": err.Error(),
+			})
+			continue
+		}
+
+		client := NewSSHClient(node)
+		// 将白名单写入节点的数据目录
+		cmd := fmt.Sprintf("cat > /data/whitelist.json << 'WLEOF'\n%s\nWLEOF", string(wlJSON))
+		_, err = client.Exec(cmd)
+		if err != nil {
+			results = append(results, map[string]interface{}{
+				"name": nodeName, "ok": false, "error": err.Error(),
+			})
+			continue
+		}
+
+		results = append(results, map[string]interface{}{
+			"name": nodeName, "ok": true,
+		})
+		log.Printf("[Sync] 白名单已推送到 %s", nodeName)
+	}
+
+	h.jsonOK(w, map[string]interface{}{
+		"status":  "ok",
+		"results": results,
+	})
 }
 
 // ============================================================

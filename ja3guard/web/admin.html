@@ -165,7 +165,9 @@ input[type=text]:focus { border-color: var(--blue); }
 
 <!-- Whitelist -->
 <div id="page-whitelist" class="page">
-  <div class="toolbar"><h2>Whitelist Management</h2></div>
+  <div class="toolbar"><h2>Whitelist Management</h2>
+    <button class="btn sm warn" onclick="syncWhitelist()">Sync to All Nodes</button>
+  </div>
   <div class="form-row">
     <input type="text" id="wl-hash" placeholder="JA3 Hash" style="width:340px">
     <input type="text" id="wl-note" placeholder="Note (e.g. iOS 17 SR)" style="width:200px">
@@ -421,6 +423,18 @@ async function addWhitelist() {
   document.getElementById('wl-hash').value = '';
   document.getElementById('wl-note').value = '';
   loadWhitelist();
+}
+
+async function syncWhitelist() {
+  if (!confirm('Push whitelist to all nodes via SSH?')) return;
+  const res = await api('api/whitelist/sync', {method: 'POST'});
+  if (res.error) {
+    alert('Error: ' + res.error);
+    return;
+  }
+  const results = res.results || [];
+  const summary = results.map(r => `${r.name}: ${r.ok ? 'OK' : 'FAILED - ' + r.error}`).join('\n');
+  alert('Whitelist Sync Results:\n\n' + (summary || 'No nodes configured'));
 }
 
 async function removeWL(hash) {
