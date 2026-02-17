@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -13,6 +15,9 @@ import (
 
 //go:embed web/admin.html
 var adminFS embed.FS
+
+//go:embed install.sh
+var installScript string
 
 type AdminHandler struct {
 	cfg       *Config
@@ -84,6 +89,18 @@ func (h *AdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "api/nodes/") && r.Method == http.MethodPut:
 		id := strings.TrimPrefix(path, "api/nodes/")
 		h.handleNodeUpdate(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/config/push") && r.Method == http.MethodPost:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		id = strings.TrimSuffix(id, "/config/push")
+		h.handleNodeConfigPush(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/deploy") && r.Method == http.MethodPost:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		id = strings.TrimSuffix(id, "/deploy")
+		h.handleNodeDeploy(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/whitelist/sync") && r.Method == http.MethodPost:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		id = strings.TrimSuffix(id, "/whitelist/sync")
+		h.handleNodeWhitelistSync(w, r, id)
 	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/ssh/test") && r.Method == http.MethodPost:
 		id := strings.TrimPrefix(path, "api/nodes/")
 		id = strings.TrimSuffix(id, "/ssh/test")
@@ -260,7 +277,7 @@ func (h *AdminHandler) handleWhitelistSync(w http.ResponseWriter, r *http.Reques
 
 		client := NewSSHClient(node)
 		// 将白名单写入节点的数据目录
-		cmd := fmt.Sprintf("cat > /data/whitelist.json << 'WLEOF'\n%s\nWLEOF", string(wlJSON))
+		cmd := fmt.Sprintf("mkdir -p /opt/ja3guard/data && cat > /opt/ja3guard/data/whitelist.json << 'WLEOF'\n%s\nWLEOF", string(wlJSON))
 		_, err = client.Exec(cmd)
 		if err != nil {
 			results = append(results, map[string]interface{}{
@@ -504,6 +521,227 @@ func (h *AdminHandler) handleNodeReport(w http.ResponseWriter, r *http.Request) 
 	h.jsonOK(w, map[string]interface{}{
 		"status":    "ok",
 		"whitelist": whitelist,
+	})
+}
+
+// ============================================================
+// 远程部署 & 配置推送 API
+// ============================================================
+
+// generateRandomPassword 生成随机密码
+func generateRandomPassword(length int) string {
+	b := make([]byte, length)
+	rand.Read(b)
+	return hex.EncodeToString(b)[:length]
+}
+
+// handleNodeConfigPush 推送配置到子节点
+func (h *AdminHandler) handleNodeConfigPush(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "仅在 master 模式下可用", 400)
+		return
+	}
+
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	// 从请求体可选覆盖 domain/upstream/admin_password
+	var req struct {
+		Domain        string `json:"domain"`
+		Upstream      string `json:"upstream"`
+		AdminPassword string `json:"admin_password"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	domain := node.Domain
+	if req.Domain != "" {
+		domain = req.Domain
+	}
+	upstream := node.Upstream
+	if req.Upstream != "" {
+		upstream = req.Upstream
+	}
+	if upstream != "" && !strings.HasPrefix(upstream, "http://") && !strings.HasPrefix(upstream, "https://") {
+		upstream = "http://" + upstream
+	}
+
+	adminPassword := req.AdminPassword
+	if adminPassword == "" {
+		adminPassword = generateRandomPassword(20)
+	}
+
+	if domain == "" {
+		h.jsonErr(w, "domain 不能为空，请在节点信息中填写或在请求中提供", 400)
+		return
+	}
+	if upstream == "" {
+		h.jsonErr(w, "upstream 不能为空，请在节点信息中填写或在请求中提供", 400)
+		return
+	}
+
+	// 构建 Master 地址
+	masterURL := fmt.Sprintf("http://%s", r.Host)
+	if r.TLS != nil {
+		masterURL = fmt.Sprintf("https://%s", r.Host)
+	}
+
+	// 生成 config.json
+	configJSON := fmt.Sprintf(`{
+  "mode": "node",
+  "domain": "%s",
+  "upstream": "%s",
+  "listen_https": ":443",
+  "listen_admin": ":8443",
+  "admin_password": "%s",
+  "guard_secret": "%s",
+  "acme_email": "%s",
+  "data_dir": "/opt/ja3guard/data",
+  "log_enabled": true,
+  "master_url": "%s",
+  "node_token": "%s",
+  "node_name": "%s",
+  "report_interval": 60
+}`, domain, upstream, adminPassword, h.cfg.GuardSecret, h.cfg.ACMEEmail, masterURL, node.Token, node.Name)
+
+	// 通过 SSH 写入配置
+	client := NewSSHClient(node)
+	if err := client.WriteFile(configJSON, "/opt/ja3guard/data/config.json"); err != nil {
+		h.jsonErr(w, "推送配置失败: "+err.Error(), 500)
+		return
+	}
+
+	// 尝试重启服务（如果已安装）
+	restartOutput, _ := client.Exec("systemctl restart ja3guard 2>&1 || echo 'ja3guard 服务未安装，跳过重启'")
+
+	log.Printf("[ConfigPush] 配置已推送到 %s (%s)", node.Name, node.Host)
+
+	h.jsonOK(w, map[string]interface{}{
+		"status":         "ok",
+		"admin_password": adminPassword,
+		"restart_output": restartOutput,
+		"message":        fmt.Sprintf("配置已推送到 %s", node.Name),
+	})
+}
+
+// handleNodeDeploy 远程部署子节点
+func (h *AdminHandler) handleNodeDeploy(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "仅在 master 模式下可用", 400)
+		return
+	}
+
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	// 从请求体获取部署参数
+	var req struct {
+		Domain        string `json:"domain"`
+		Upstream      string `json:"upstream"`
+		SkipNginx     bool   `json:"skip_nginx"`
+		AdminPassword string `json:"admin_password"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	domain := req.Domain
+	if domain == "" {
+		domain = node.Domain
+	}
+	upstream := req.Upstream
+	if upstream == "" {
+		upstream = node.Upstream
+	}
+	adminPassword := req.AdminPassword
+	if adminPassword == "" {
+		adminPassword = generateRandomPassword(20)
+	}
+
+	if domain == "" {
+		h.jsonErr(w, "domain 不能为空", 400)
+		return
+	}
+
+	// 构建 Master 地址
+	masterURL := fmt.Sprintf("http://%s", r.Host)
+	if r.TLS != nil {
+		masterURL = fmt.Sprintf("https://%s", r.Host)
+	}
+
+	// 构建环境变量前缀
+	envParts := []string{
+		"JA3_MODE=node",
+		fmt.Sprintf("JA3_DOMAIN=%s", domain),
+		fmt.Sprintf("JA3_ADMIN_PASSWORD=%s", adminPassword),
+		fmt.Sprintf("JA3_MASTER_URL=%s", masterURL),
+		fmt.Sprintf("JA3_NODE_TOKEN=%s", node.Token),
+		fmt.Sprintf("JA3_NODE_NAME=%s", node.Name),
+	}
+	if upstream != "" {
+		envParts = append(envParts, fmt.Sprintf("JA3_UPSTREAM=%s", upstream))
+	}
+	if req.SkipNginx {
+		envParts = append(envParts, "JA3_SKIP_NGINX=1")
+	}
+	envPrefix := strings.Join(envParts, " ")
+
+	// 通过 SSH 上传并执行 install.sh
+	client := NewSSHClient(node)
+	output, err := client.UploadAndRun(installScript, "/tmp/ja3guard-install.sh", envPrefix)
+	if err != nil {
+		h.jsonOK(w, map[string]interface{}{
+			"ok":             false,
+			"output":         output,
+			"error":          err.Error(),
+			"admin_password": adminPassword,
+		})
+		return
+	}
+
+	log.Printf("[Deploy] 节点 %s (%s) 部署完成", node.Name, node.Host)
+
+	h.jsonOK(w, map[string]interface{}{
+		"ok":             true,
+		"output":         output,
+		"admin_password": adminPassword,
+		"message":        fmt.Sprintf("节点 %s 部署完成", node.Name),
+	})
+}
+
+// handleNodeWhitelistSync 推送白名单到单个节点
+func (h *AdminHandler) handleNodeWhitelistSync(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "仅在 master 模式下可用", 400)
+		return
+	}
+
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	whitelist := h.store.GetWhitelist()
+	wlJSON, _ := json.MarshalIndent(whitelist, "", "  ")
+
+	client := NewSSHClient(node)
+	if err := client.WriteFile(string(wlJSON), "/opt/ja3guard/data/whitelist.json"); err != nil {
+		h.jsonOK(w, map[string]interface{}{
+			"ok":    false,
+			"error": err.Error(),
+		})
+		return
+	}
+
+	log.Printf("[Sync] 白名单已推送到 %s", node.Name)
+
+	h.jsonOK(w, map[string]interface{}{
+		"ok":      true,
+		"message": fmt.Sprintf("白名单已推送到 %s", node.Name),
 	})
 }
 

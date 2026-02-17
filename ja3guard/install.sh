@@ -27,6 +27,7 @@
 #   JA3_MASTER_URL      - Master 地址 (node 模式可选，用于上报)
 #   JA3_NODE_TOKEN      - 节点令牌 (node 模式可选，用于上报)
 #   JA3_NODE_NAME       - 节点名称 (node 模式可选)
+#   JA3_SKIP_NGINX      - 设为 1 跳过 Nginx/PHP 安装 (纯反代模式，上游在远程服务器)
 #
 # 支持: Debian 11/12, Ubuntu 20.04/22.04/24.04, CentOS 8/9 (Stream), RHEL 8/9
 #
@@ -44,6 +45,9 @@ readonly GO_VERSION="1.22.5"
 readonly GO_MIN_VERSION="1.22"
 readonly REPO_URL="https://github.com/gkd-cloud/gkdcloud.git"
 readonly REPO_SUBDIR="ja3guard"
+
+# Nginx 安装控制（默认安装，设为 1 跳过）
+SKIP_NGINX="${JA3_SKIP_NGINX:-0}"
 
 # 颜色
 RED='\033[0;31m'
@@ -268,6 +272,36 @@ setup_go() {
         exit 1
     fi
     info "Go 安装成功: $(go version)"
+}
+
+# 询问上游位置（决定是否安装 Nginx/PHP）
+ask_upstream_location() {
+    # 如果通过环境变量已设定，跳过询问
+    if [[ "$SKIP_NGINX" == "1" ]]; then
+        info "跳过 Nginx/PHP 安装 (JA3_SKIP_NGINX=1)"
+        return
+    fi
+
+    echo ""
+    echo -e "  ${CYAN}SSPanel / 业务后端在哪里？${NC}"
+    echo ""
+    echo "    1) 本机 — 将安装 Nginx + PHP-FPM（SSPanel 部署在此服务器）"
+    echo "    2) 远程 — 跳过 Nginx/PHP，仅安装 JA3 Guard（纯反代模式）"
+    echo ""
+
+    local choice=""
+    ask "请选择" choice "2"
+
+    case "$choice" in
+        1)
+            SKIP_NGINX=0
+            info "将安装 Nginx + PHP-FPM"
+            ;;
+        *)
+            SKIP_NGINX=1
+            info "跳过 Nginx/PHP，仅安装 JA3 Guard 反代"
+            ;;
+    esac
 }
 
 # 检查端口占用
@@ -642,10 +676,20 @@ setup_config() {
     local config_file="${DATA_DIR}/config.json"
 
     if [[ -f "$config_file" ]]; then
-        info "配置文件已存在: $config_file"
-        if ! confirm "是否重新生成？(会备份旧配置)"; then
-            info "保留现有配置"
-            return
+        # 如果配置已存在且没有提供任何 JA3_* 环境变量 → 直接使用（Master 预推送场景）
+        local has_env_vars=false
+        for v in JA3_DOMAIN JA3_UPSTREAM JA3_ADMIN_PASSWORD JA3_MASTER_URL JA3_NODE_TOKEN JA3_NODE_NAME; do
+            if [[ -n "${!v:-}" ]]; then
+                has_env_vars=true
+                break
+            fi
+        done
+        if ! $has_env_vars; then
+            info "配置文件已存在: $config_file"
+            if ! confirm "是否重新生成？(会备份旧配置)"; then
+                info "保留现有配置"
+                return
+            fi
         fi
         cp "$config_file" "${config_file}.bak.$(date +%Y%m%d%H%M%S)"
         info "旧配置已备份"
@@ -730,6 +774,16 @@ setup_config_node() {
     local upstream="${JA3_UPSTREAM:-}"
     if [[ -n "$upstream" ]]; then
         info "上游地址 (来自环境变量): $upstream"
+    elif [[ "$SKIP_NGINX" == "1" ]]; then
+        echo ""
+        echo "  上游地址: 远程业务服务器的 IP:端口（JA3 Guard 将反代到此地址）"
+        echo "  示例: 10.0.0.5:80 (内网) 或 203.0.113.1:80 (公网)"
+        while [[ -z "$upstream" ]]; do
+            ask "上游地址 (远程 IP:端口)" upstream
+            if [[ -z "$upstream" ]]; then
+                warn "纯反代模式下上游地址不能为空"
+            fi
+        done
     else
         echo ""
         echo "  上游地址: JA3 Guard 反代到的 Nginx 端口，通常保持默认即可"
@@ -949,15 +1003,27 @@ print_summary() {
         echo -e "${CYAN}  [Node 模式]${NC}"
         echo "  域名:          $domain"
         echo ""
-        echo -e "${CYAN}  [Nginx 上游]${NC}"
-        echo "  监听地址:      127.0.0.1:${upstream_port}"
-        echo "  网站根目录:    ${webroot}"
-        echo ""
-        echo -e "${CYAN}  [请求链路]${NC}"
-        echo "  用户 → :443 (JA3 Guard) → 127.0.0.1:${upstream_port} (Nginx) → PHP-FPM"
-        echo ""
-        echo "  ⚠ 请将 guard_secret 填入 SSPanel 的 config/domainReplace.php"
-        echo "  ⚠ 请将 SSPanel 代码部署到 ${webroot}"
+
+        local upstream_full
+        upstream_full=$(grep -oP '"upstream"\s*:\s*"\K[^"]+' "$config_file")
+
+        if [[ "$SKIP_NGINX" == "1" ]]; then
+            echo -e "${CYAN}  [纯反代模式 — 无 Nginx]${NC}"
+            echo "  上游地址:      ${upstream_full}"
+            echo ""
+            echo -e "${CYAN}  [请求链路]${NC}"
+            echo "  用户 → :443 (JA3 Guard) → ${upstream_full} (远程业务服务器)"
+        else
+            echo -e "${CYAN}  [Nginx 上游]${NC}"
+            echo "  监听地址:      127.0.0.1:${upstream_port}"
+            echo "  网站根目录:    ${webroot}"
+            echo ""
+            echo -e "${CYAN}  [请求链路]${NC}"
+            echo "  用户 → :443 (JA3 Guard) → 127.0.0.1:${upstream_port} (Nginx) → PHP-FPM"
+            echo ""
+            echo "  ⚠ 请将 guard_secret 填入 SSPanel 的 config/domainReplace.php"
+            echo "  ⚠ 请将 SSPanel 代码部署到 ${webroot}"
+        fi
     fi
 
     echo ""
@@ -1128,14 +1194,17 @@ main() {
     setup_go
 
     if [[ "$INSTALL_MODE" == "node" ]]; then
-        setup_nginx
+        ask_upstream_location
+        if [[ "$SKIP_NGINX" != "1" ]]; then
+            setup_nginx
+        fi
         check_ports
     fi
 
     build_app
     setup_config
 
-    if [[ "$INSTALL_MODE" == "node" ]]; then
+    if [[ "$INSTALL_MODE" == "node" && "$SKIP_NGINX" != "1" ]]; then
         setup_nginx_vhost
     fi
 
@@ -1175,7 +1244,7 @@ case "${1:-}" in
         echo ""
         echo "Commands:"
         echo "  master     安装 Master 管理面板（不含 Nginx/PHP）"
-        echo "  node       安装 Node 反代节点（含 Nginx/PHP，默认）"
+        echo "  node       安装 Node 反代节点（Nginx/PHP 可选，默认）"
         echo "  upgrade    升级现有安装"
         echo "  uninstall  卸载（保留数据目录）"
         echo "  purge      彻底卸载（删除所有数据）"

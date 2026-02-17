@@ -188,6 +188,68 @@ func (sc *SSHClient) UploadAndExec(scriptContent, remotePath string) (string, er
 	return stdout.String() + stderr.String(), nil
 }
 
+// UploadAndRun 上传脚本并以指定环境变量前缀执行
+// envPrefix 示例: "JA3_MODE=node JA3_DOMAIN=sub.example.com JA3_SKIP_NGINX=1"
+func (sc *SSHClient) UploadAndRun(script, remotePath, envPrefix string) (string, error) {
+	client, err := sc.connect()
+	if err != nil {
+		return "", err
+	}
+	defer client.Close()
+
+	// 写入脚本
+	session, err := client.NewSession()
+	if err != nil {
+		return "", err
+	}
+	session.Stdin = bytes.NewReader([]byte(script))
+	if err := session.Run(fmt.Sprintf("cat > %s && chmod +x %s", remotePath, remotePath)); err != nil {
+		session.Close()
+		return "", fmt.Errorf("上传脚本失败: %w", err)
+	}
+	session.Close()
+
+	// 执行脚本（带环境变量前缀）
+	session2, err := client.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer session2.Close()
+
+	var stdout, stderr bytes.Buffer
+	session2.Stdout = &stdout
+	session2.Stderr = &stderr
+
+	cmd := envPrefix + " bash " + remotePath + " node"
+	if err := session2.Run(cmd); err != nil {
+		return stdout.String() + "\n" + stderr.String(), fmt.Errorf("执行脚本失败: %w", err)
+	}
+
+	return stdout.String() + stderr.String(), nil
+}
+
+// WriteFile 通过 SSH 写入文件到远程服务器
+func (sc *SSHClient) WriteFile(content, remotePath string) error {
+	client, err := sc.connect()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	session, err := client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	session.Stdin = bytes.NewReader([]byte(content))
+	cmd := fmt.Sprintf("mkdir -p $(dirname %s) && cat > %s", remotePath, remotePath)
+	if err := session.Run(cmd); err != nil {
+		return fmt.Errorf("写入文件失败: %w", err)
+	}
+	return nil
+}
+
 // CheckPort 检查远程端口是否开放
 func (sc *SSHClient) CheckPort(port int) bool {
 	addr := fmt.Sprintf("%s:%d", sc.node.Host, port)

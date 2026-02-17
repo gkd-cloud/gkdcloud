@@ -19,6 +19,8 @@ type NodeInfo struct {
 	AuthType  string `json:"auth_type"`  // "key" 或 "password"
 	SSHKey    string `json:"ssh_key"`    // SSH 私钥内容（auth_type=key 时）
 	SSHPass   string `json:"ssh_pass"`   // SSH 密码（auth_type=password 时）
+	Domain    string `json:"domain"`     // 节点服务域名（推送配置用）
+	Upstream  string `json:"upstream"`   // 节点上游地址（推送配置用）
 	Token     string `json:"token"`      // 节点上报令牌
 	CreatedAt string `json:"created_at"` // 创建时间
 	Note      string `json:"note"`       // 备注
@@ -222,6 +224,8 @@ func (ns *NodeStore) ListNodes() []map[string]interface{} {
 			"ssh_port":       n.SSHPort,
 			"ssh_user":       n.SSHUser,
 			"auth_type":      n.AuthType,
+			"domain":         n.Domain,
+			"upstream":       n.Upstream,
 			"token":          n.Token,
 			"created_at":     n.CreatedAt,
 			"note":           n.Note,
