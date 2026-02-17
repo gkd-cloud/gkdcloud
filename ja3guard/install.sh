@@ -660,7 +660,10 @@ setup_config() {
     if [[ -n "$admin_password" ]]; then
         info "管理密码 (来自环境变量): ******"
     else
-        ask "管理面板密码" admin_password "随机生成"
+        echo "  管理面板密码用于登录 Web 管理界面 (http://IP:8443)"
+        echo "  直接回车将自动生成随机密码"
+        echo ""
+        ask "设置管理面板密码" admin_password "随机生成"
         if [[ "$admin_password" == "随机生成" || -z "$admin_password" ]]; then
             admin_password=$(head -c 24 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
             info "已生成随机密码: $admin_password"
@@ -713,6 +716,8 @@ setup_config_node() {
     if [[ -n "$domain" ]]; then
         info "域名 (来自环境变量): $domain"
     else
+        echo ""
+        echo "  订阅域名: 用于申请 Let's Encrypt 证书，DNS 需直连服务器（不走 CDN）"
         while [[ -z "$domain" ]]; do
             ask "订阅域名 (如 sub.example.com)" domain
             if [[ -z "$domain" ]]; then
@@ -726,6 +731,8 @@ setup_config_node() {
     if [[ -n "$upstream" ]]; then
         info "上游地址 (来自环境变量): $upstream"
     else
+        echo ""
+        echo "  上游地址: JA3 Guard 反代到的 Nginx 端口，通常保持默认即可"
         ask "上游地址" upstream "127.0.0.1:8080"
     fi
     if [[ "$upstream" != http://* && "$upstream" != https://* ]]; then
@@ -751,12 +758,17 @@ setup_config_node() {
     local node_name="${JA3_NODE_NAME:-}"
 
     if [[ -z "$master_url" ]]; then
-        ask "Master 地址 (如 http://master-ip:8443，留空跳过上报)" master_url ""
+        echo ""
+        echo "  Master 上报: 填写后节点会定期向 Master 上报状态和日志"
+        echo "  如果没有 Master 或仅单机使用，直接回车跳过"
+        ask "Master 地址 (如 http://master-ip:8443)" master_url ""
     fi
 
     if [[ -n "$master_url" ]]; then
         if [[ -z "$node_token" ]]; then
-            ask "节点令牌 (从 Master 面板获取)" node_token ""
+            echo ""
+            echo "  节点令牌: 在 Master 管理面板 → Nodes → 添加节点后生成"
+            ask "节点令牌" node_token ""
         fi
         if [[ -z "$node_name" ]]; then
             local hostname_default

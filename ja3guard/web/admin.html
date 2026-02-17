@@ -561,11 +561,29 @@ function nxNewSite() {
   }
 
   const template = `# ${name} - Created via JA3 Guard
+#
+# 这是 JA3 Guard 的上游 Nginx 站点配置
+# 请求链路: 用户 → :443 (JA3 Guard) → 127.0.0.1:8080 (本站点) → PHP-FPM
+#
+# 需要修改的地方:
+#   1. server_name  → 改成你的订阅域名
+#   2. root         → 改成 SSPanel 的 public 目录路径
+#   3. fastcgi_pass → 改成实际的 PHP-FPM socket 路径
+#      查找命令: ls /run/php/php*-fpm.sock
+#      常见路径:
+#        Debian/Ubuntu: unix:/run/php/php8.2-fpm.sock
+#        CentOS/RHEL:   unix:/var/run/php-fpm/www.sock
+#        宝塔面板:      unix:/tmp/php-cgi-82.sock
+
 server {
+    # 仅监听本地，端口需与 JA3 Guard config.json 中的 upstream 一致
     listen 127.0.0.1:8080;
+
+    # 改成你的订阅域名
     server_name example.com;
 
-    root /www/example/public;
+    # 改成 SSPanel 网站根目录（注意要指向 public 子目录）
+    root /www/sspanel/public;
     index index.php index.html;
 
     location / {
@@ -574,12 +592,14 @@ server {
 
     location ~ \\.php$ {
         try_files $uri =404;
-        fastcgi_pass unix:/run/php/php-fpm.sock;
+        # 改成你的 PHP-FPM socket 路径（参考上方说明）
+        fastcgi_pass unix:/run/php/php8.2-fpm.sock;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         include fastcgi_params;
     }
 
+    # 禁止访问隐藏文件（.env, .git 等）
     location ~ /\\. {
         deny all;
     }
