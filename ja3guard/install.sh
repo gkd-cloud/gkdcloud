@@ -265,16 +265,27 @@ check_ports() {
     step "检查端口占用"
 
     local ports_in_use=()
+    local all_ja3guard=true
 
     for port in 80 443; do
         if ss -tlnp | grep -q ":${port} "; then
             local process
             process=$(ss -tlnp | grep ":${port} " | grep -oP 'users:\(\("\K[^"]+' || echo "未知进程")
             ports_in_use+=("${port} (被 ${process} 占用)")
+            # 如果占用者不是 ja3guard，标记
+            if [[ "$process" != "ja3guard" ]]; then
+                all_ja3guard=false
+            fi
         fi
     done
 
     if [[ ${#ports_in_use[@]} -gt 0 ]]; then
+        if $all_ja3guard; then
+            # 端口被 ja3guard 自身占用（升级/重装场景），自动跳过
+            info "端口被 ja3guard 占用（将在安装后重启服务）"
+            return
+        fi
+
         warn "以下端口已被占用:"
         for p in "${ports_in_use[@]}"; do
             echo "    - 端口 $p"
@@ -284,7 +295,7 @@ check_ports() {
         echo "  1. 使用 Nginx Stream SNI 分流（详见 README）"
         echo "  2. 修改 JA3 Guard 监听端口后用 Nginx 转发"
         echo ""
-        if ! confirm "是否继续安装？"; then
+        if ! confirm "是否继续安装？" "y"; then
             info "已取消安装"
             exit 0
         fi
