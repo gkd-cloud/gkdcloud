@@ -33,7 +33,62 @@ func main() {
 		log.Fatalf("初始化存储失败: %v", err)
 	}
 
-	// 定时清理旧日志（保留 30 天）
+	if cfg.IsMaster() {
+		runMaster(cfg, store)
+	} else {
+		runNode(cfg, store)
+	}
+}
+
+// runMaster 启动 Master 模式：仅管理面板
+func runMaster(cfg *Config, store *Store) {
+	log.Printf("[Master] JA3 Guard 管理面板启动中...")
+
+	// 定时清理旧日志
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			store.Cleanup(30)
+			log.Println("[Store] 已清理 30 天前的日志")
+		}
+	}()
+
+	// 管理面板
+	adminHandler := NewAdminHandler(cfg, store)
+	adminServer := &http.Server{
+		Addr:         cfg.ListenAdmin,
+		Handler:      adminHandler,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
+
+	go func() {
+		log.Printf("[Master] 管理面板启动 %s", cfg.ListenAdmin)
+		if err := adminServer.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatalf("[Master] 服务错误: %v", err)
+		}
+	}()
+
+	log.Println("[Master] JA3 Guard Master 已就绪")
+
+	// 优雅关闭
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("收到停止信号，正在关闭...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	adminServer.Shutdown(ctx)
+	log.Println("已安全关闭")
+}
+
+// runNode 启动 Node 模式：完整 JA3 反代 + 上报
+func runNode(cfg *Config, store *Store) {
+	log.Printf("[Node] JA3 Guard 节点启动中...")
+
+	// 定时清理旧日志
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
@@ -80,7 +135,6 @@ func main() {
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-			// 从 JA3Listener 的 map 中取出该连接的 JA3 hash
 			addr := c.RemoteAddr().String()
 			if hash, ok := ja3Map.LoadAndDelete(addr); ok {
 				return context.WithValue(ctx, ctxKeyJA3, hash.(string))
@@ -89,7 +143,7 @@ func main() {
 		},
 	}
 
-	// --- 管理面板 ---
+	// --- 管理面板（本地调试用）---
 	adminHandler := NewAdminHandler(cfg, store)
 	adminServer := &http.Server{
 		Addr:         cfg.ListenAdmin,
@@ -106,27 +160,27 @@ func main() {
 
 	// 启动所有服务
 	go func() {
-		log.Printf("[HTTPS] 订阅代理启动 %s (域名: %s → 上游: %s)", cfg.ListenHTTPS, cfg.Domain, cfg.Upstream)
+		log.Printf("[Node] HTTPS 代理启动 %s (域名: %s → 上游: %s)", cfg.ListenHTTPS, cfg.Domain, cfg.Upstream)
 		if err := httpsServer.Serve(tlsListener); err != http.ErrServerClosed {
 			log.Fatalf("[HTTPS] 服务错误: %v", err)
 		}
 	}()
 
 	go func() {
-		log.Printf("[Admin] 管理面板启动 %s", cfg.ListenAdmin)
+		log.Printf("[Node] 管理面板启动 %s", cfg.ListenAdmin)
 		if err := adminServer.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatalf("[Admin] 服务错误: %v", err)
 		}
 	}()
 
 	go func() {
-		log.Printf("[HTTP] ACME 验证 + 重定向启动 :80")
+		log.Printf("[Node] ACME 验证 + 重定向启动 :80")
 		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatalf("[HTTP] 服务错误: %v", err)
 		}
 	}()
 
-	log.Println("JA3 Guard 已就绪")
+	log.Println("[Node] JA3 Guard Node 已就绪")
 
 	// 优雅关闭
 	quit := make(chan os.Signal, 1)
