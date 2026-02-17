@@ -2,10 +2,20 @@
 #
 # JA3 Guard 一键部署脚本（裸机版，无需 Docker）
 #
-# 用法:
-#   curl -fsSL <url>/install.sh | bash
-#   或
-#   chmod +x install.sh && ./install.sh
+# 交互式:
+#   curl -fsSL <url>/install.sh | sudo bash
+#
+# 非交互式 (通过环境变量):
+#   curl -fsSL <url>/install.sh | JA3_DOMAIN=sub.example.com sudo -E bash
+#
+# 本地运行:
+#   cd ja3guard && sudo bash install.sh
+#
+# 环境变量 (可选，跳过交互提问):
+#   JA3_DOMAIN          - 订阅域名 (必填，无默认值)
+#   JA3_UPSTREAM        - 上游地址 (默认 127.0.0.1:8080)
+#   JA3_ADMIN_PASSWORD  - 管理面板密码 (默认随机生成)
+#   JA3_ACME_EMAIL      - ACME 邮箱 (默认空)
 #
 # 支持: Debian 11/12, Ubuntu 20.04/22.04/24.04, CentOS 8/9 (Stream), RHEL 8/9
 #
@@ -39,11 +49,60 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 step()  { echo -e "\n${CYAN}▶ $*${NC}"; }
 
+# 从终端读取用户输入（兼容 curl | bash）
+# 用法: ask "提示文字" 变量名 [默认值]
+ask() {
+    local prompt="$1"
+    local varname="$2"
+    local default="${3:-}"
+
+    if [[ -n "$default" ]]; then
+        prompt="${prompt} [${default}]"
+    fi
+
+    local answer=""
+    # 尝试从 /dev/tty 读取（curl | bash 场景）
+    if read -rp "  ${prompt}: " answer </dev/tty 2>/dev/null; then
+        : # 读取成功
+    else
+        # /dev/tty 不可用（如 CI 环境），使用默认值
+        answer=""
+    fi
+
+    # 如果用户没输入，使用默认值
+    if [[ -z "$answer" ]]; then
+        answer="$default"
+    fi
+
+    # 赋值给目标变量
+    printf -v "$varname" '%s' "$answer"
+}
+
+# 确认提示，返回 0=yes 1=no
+# 用法: confirm "提示" [y/n 默认]
+confirm() {
+    local prompt="$1"
+    local default="${2:-n}"
+    local hint="y/N"
+    [[ "$default" == "y" ]] && hint="Y/n"
+
+    local answer=""
+    if read -rp "  ${prompt} [${hint}] " answer </dev/tty 2>/dev/null; then
+        : # 读取成功
+    else
+        answer="$default"
+    fi
+
+    answer="${answer:-$default}"
+    [[ "$answer" == "y" || "$answer" == "Y" ]]
+}
+
 # 检查是否 root
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         error "请使用 root 用户运行此脚本"
         echo "  sudo bash install.sh"
+        echo "  或: curl -fsSL <url>/install.sh | sudo bash"
         exit 1
     fi
 }
@@ -215,8 +274,7 @@ check_ports() {
         echo "  1. 使用 Nginx Stream SNI 分流（详见 README）"
         echo "  2. 修改 JA3 Guard 监听端口后用 Nginx 转发"
         echo ""
-        read -rp "  是否继续安装？[y/N] " confirm
-        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        if ! confirm "是否继续安装？"; then
             info "已取消安装"
             exit 0
         fi
@@ -291,7 +349,7 @@ build_app() {
     info "编译成功: $BIN_PATH ($bin_size)"
 }
 
-# 生成配置文件（交互式）
+# 生成配置文件
 setup_config() {
     step "配置 JA3 Guard"
 
@@ -301,8 +359,7 @@ setup_config() {
 
     if [[ -f "$config_file" ]]; then
         info "配置文件已存在: $config_file"
-        read -rp "  是否重新生成？(会备份旧配置) [y/N] " overwrite
-        if [[ "$overwrite" != "y" && "$overwrite" != "Y" ]]; then
+        if ! confirm "是否重新生成？(会备份旧配置)"; then
             info "保留现有配置"
             return
         fi
@@ -310,44 +367,61 @@ setup_config() {
         info "旧配置已备份"
     fi
 
-    echo ""
-    echo "  请填写以下配置（回车使用默认值）:"
-    echo ""
+    # ---- 收集配置 ----
+    # 优先使用环境变量，否则交互询问
 
-    # 域名
-    local domain=""
-    while [[ -z "$domain" ]]; do
-        read -rp "  订阅域名 (如 sub.example.com): " domain
-        if [[ -z "$domain" ]]; then
-            warn "域名不能为空"
-        fi
-    done
+    # 域名 (必填)
+    local domain="${JA3_DOMAIN:-}"
+    if [[ -n "$domain" ]]; then
+        info "域名 (来自环境变量): $domain"
+    else
+        echo ""
+        echo "  请填写以下配置（回车使用默认值）:"
+        echo ""
+        while [[ -z "$domain" ]]; do
+            ask "订阅域名 (如 sub.example.com)" domain
+            if [[ -z "$domain" ]]; then
+                warn "域名不能为空"
+            fi
+        done
+    fi
 
     # 上游地址
-    local upstream
-    read -rp "  上游地址 [127.0.0.1:8080]: " upstream
-    upstream="${upstream:-127.0.0.1:8080}"
+    local upstream="${JA3_UPSTREAM:-}"
+    if [[ -n "$upstream" ]]; then
+        info "上游地址 (来自环境变量): $upstream"
+    else
+        ask "上游地址" upstream "127.0.0.1:8080"
+    fi
     # 补全 http:// 前缀
     if [[ "$upstream" != http://* && "$upstream" != https://* ]]; then
         upstream="http://${upstream}"
     fi
 
     # 管理密码
-    local admin_password
-    read -rp "  管理面板密码 [随机生成]: " admin_password
-    if [[ -z "$admin_password" ]]; then
-        admin_password=$(head -c 24 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
-        info "已生成随机密码: $admin_password"
+    local admin_password="${JA3_ADMIN_PASSWORD:-}"
+    if [[ -n "$admin_password" ]]; then
+        info "管理密码 (来自环境变量): ******"
+    else
+        ask "管理面板密码" admin_password "随机生成"
+        if [[ "$admin_password" == "随机生成" || -z "$admin_password" ]]; then
+            admin_password=$(head -c 24 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
+            info "已生成随机密码: $admin_password"
+        fi
     fi
 
-    # Guard Secret
+    # Guard Secret (总是自动生成)
     local guard_secret
     guard_secret=$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32)
     info "已生成 guard_secret: $guard_secret"
 
     # ACME 邮箱
-    local acme_email
-    read -rp "  ACME 邮箱 (用于 Let's Encrypt，可留空): " acme_email
+    local acme_email="${JA3_ACME_EMAIL:-}"
+    if [[ -z "$acme_email" ]]; then
+        ask "ACME 邮箱 (用于 Let's Encrypt，可留空)" acme_email ""
+    else
+        info "ACME 邮箱 (来自环境变量): $acme_email"
+    fi
 
     # 写入配置
     cat > "$config_file" <<JSONEOF
@@ -497,8 +571,7 @@ uninstall() {
     step "卸载 JA3 Guard"
 
     echo ""
-    read -rp "  确认卸载 JA3 Guard？数据目录将保留。[y/N] " confirm
-    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    if ! confirm "确认卸载 JA3 Guard？数据目录将保留。"; then
         info "已取消"
         exit 0
     fi
