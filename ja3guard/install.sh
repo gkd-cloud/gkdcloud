@@ -16,6 +16,7 @@
 #   JA3_UPSTREAM        - 上游地址 (默认 127.0.0.1:8080)
 #   JA3_ADMIN_PASSWORD  - 管理面板密码 (默认随机生成)
 #   JA3_ACME_EMAIL      - ACME 邮箱 (默认空)
+#   JA3_WEBROOT         - SSPanel 网站根目录 (默认 /www/sspanel/public)
 #
 # 支持: Debian 11/12, Ubuntu 20.04/22.04/24.04, CentOS 8/9 (Stream), RHEL 8/9
 #
@@ -349,6 +350,259 @@ build_app() {
     info "编译成功: $BIN_PATH ($bin_size)"
 }
 
+# ============================================================
+# 安装 Nginx + PHP-FPM 并配置上游站点
+# ============================================================
+setup_nginx() {
+    step "安装 Nginx + PHP"
+
+    # 检测是否已安装
+    if command -v nginx &>/dev/null; then
+        info "Nginx 已安装: $(nginx -v 2>&1 | grep -oP 'nginx/\K.*')"
+    else
+        info "安装 Nginx ..."
+        case "$PKG_MANAGER" in
+            apt)
+                apt-get update -qq
+                apt-get install -y -qq nginx
+                ;;
+            yum|dnf)
+                $PKG_MANAGER install -y -q nginx
+                ;;
+        esac
+        info "Nginx 安装完成"
+    fi
+
+    # 安装 PHP-FPM
+    local php_fpm_installed=false
+    if command -v php &>/dev/null; then
+        info "PHP 已安装: $(php -v | head -1 | grep -oP 'PHP \K[0-9]+\.[0-9]+')"
+        php_fpm_installed=true
+    fi
+
+    if ! $php_fpm_installed; then
+        info "安装 PHP-FPM ..."
+        case "$PKG_MANAGER" in
+            apt)
+                # 检测可用的 PHP 版本
+                local php_ver=""
+                for v in 8.3 8.2 8.1 8.0; do
+                    if apt-cache show "php${v}-fpm" &>/dev/null 2>&1; then
+                        php_ver="$v"
+                        break
+                    fi
+                done
+
+                if [[ -z "$php_ver" ]]; then
+                    # 如果没找到带版本号的包，试试通用包名
+                    if apt-cache show php-fpm &>/dev/null 2>&1; then
+                        apt-get install -y -qq php-fpm php-cli php-curl php-mbstring php-xml php-zip php-mysql php-sqlite3
+                    else
+                        warn "未找到可用的 PHP-FPM 包，请手动安装"
+                        warn "  apt install php-fpm php-cli php-curl php-mbstring php-xml php-zip php-mysql"
+                    fi
+                else
+                    info "安装 PHP ${php_ver} ..."
+                    apt-get install -y -qq \
+                        "php${php_ver}-fpm" "php${php_ver}-cli" "php${php_ver}-curl" \
+                        "php${php_ver}-mbstring" "php${php_ver}-xml" "php${php_ver}-zip" \
+                        "php${php_ver}-mysql" "php${php_ver}-sqlite3"
+                fi
+                ;;
+            yum|dnf)
+                # RHEL 系用 remi 或系统自带
+                if $PKG_MANAGER list php-fpm &>/dev/null 2>&1; then
+                    $PKG_MANAGER install -y -q php-fpm php-cli php-curl php-mbstring php-xml php-zip php-mysqlnd
+                else
+                    warn "未找到 PHP-FPM 包，请手动安装或启用 Remi 仓库"
+                fi
+                ;;
+        esac
+        info "PHP-FPM 安装完成"
+    fi
+
+    # 检测 PHP-FPM socket 路径
+    PHP_FPM_SOCK=""
+    for sock in \
+        /run/php/php*-fpm.sock \
+        /var/run/php/php*-fpm.sock \
+        /run/php-fpm/www.sock \
+        /var/run/php-fpm/www.sock; do
+        # glob 展开
+        for f in $sock; do
+            if [[ -S "$f" ]] || [[ -e "$f" ]]; then
+                PHP_FPM_SOCK="$f"
+                break 2
+            fi
+        done
+    done
+
+    # 如果 socket 不存在，启动 PHP-FPM 再找
+    if [[ -z "$PHP_FPM_SOCK" ]]; then
+        # 找到 PHP-FPM 服务名并启动
+        local fpm_service
+        fpm_service=$(systemctl list-unit-files | grep -oP 'php[0-9.]*-fpm\.service' | head -1 || true)
+        if [[ -z "$fpm_service" ]]; then
+            fpm_service="php-fpm.service"
+        fi
+        systemctl enable "$fpm_service" --now 2>/dev/null || true
+        sleep 1
+        # 再次查找
+        for sock in /run/php/php*-fpm.sock /var/run/php-fpm/www.sock; do
+            for f in $sock; do
+                if [[ -S "$f" ]]; then
+                    PHP_FPM_SOCK="$f"
+                    break 2
+                fi
+            done
+        done
+    fi
+
+    if [[ -z "$PHP_FPM_SOCK" ]]; then
+        # 回退到 TCP
+        PHP_FPM_SOCK="127.0.0.1:9000"
+        warn "未找到 PHP-FPM socket，使用默认 TCP: $PHP_FPM_SOCK"
+    else
+        info "PHP-FPM socket: $PHP_FPM_SOCK"
+    fi
+
+    # 启动 Nginx 和 PHP-FPM
+    systemctl enable nginx --now 2>/dev/null || true
+}
+
+# 配置 Nginx 上游站点
+setup_nginx_vhost() {
+    step "配置 Nginx 上游站点"
+
+    local config_file="${DATA_DIR}/config.json"
+    local domain upstream_port
+
+    domain=$(grep -oP '"domain"\s*:\s*"\K[^"]+' "$config_file")
+    upstream_port=$(grep -oP '"upstream"\s*:\s*"http://[^:]+:\K[0-9]+' "$config_file" || echo "8080")
+
+    # SSPanel 网站根目录
+    local webroot="${JA3_WEBROOT:-/www/sspanel/public}"
+    if [[ ! -d "$webroot" ]]; then
+        # 创建占位目录，用户后续部署 SSPanel 代码
+        mkdir -p "$webroot"
+        # 写一个测试页面
+        cat > "${webroot}/index.php" <<'PHPEOF'
+<?php
+// JA3 Guard 上游测试页面
+// 部署 SSPanel 后请删除此文件
+
+$trusted = $_SERVER['HTTP_X_JA3_TRUSTED'] ?? '0';
+$ja3hash = $_SERVER['HTTP_X_JA3_HASH'] ?? 'unknown';
+
+header('Content-Type: application/json');
+echo json_encode([
+    'status'  => 'ok',
+    'trusted' => $trusted === '1',
+    'ja3'     => $ja3hash,
+    'time'    => date('Y-m-d H:i:s'),
+], JSON_PRETTY_PRINT) . "\n";
+PHPEOF
+        info "已创建测试页面: ${webroot}/index.php"
+        warn "网站目录 ${webroot} 是新建的，请后续部署 SSPanel 代码"
+    fi
+
+    # 确定 Nginx 配置目录
+    local nginx_conf_dir=""
+    if [[ -d /etc/nginx/sites-available ]]; then
+        nginx_conf_dir="sites"  # Debian/Ubuntu 风格
+    elif [[ -d /etc/nginx/conf.d ]]; then
+        nginx_conf_dir="conf.d"  # CentOS/RHEL 风格
+    else
+        mkdir -p /etc/nginx/conf.d
+        nginx_conf_dir="conf.d"
+    fi
+
+    # 判断 fastcgi_pass 格式
+    local fastcgi_pass
+    if [[ "$PHP_FPM_SOCK" == /* ]]; then
+        fastcgi_pass="unix:${PHP_FPM_SOCK}"
+    else
+        fastcgi_pass="$PHP_FPM_SOCK"
+    fi
+
+    # 生成 Nginx vhost 配置
+    local vhost_conf
+    cat > /tmp/ja3guard-upstream.conf <<NGINXEOF
+# JA3 Guard 上游站点 - 由 install.sh 自动生成
+# 仅监听本地 ${upstream_port} 端口，接收来自 JA3 Guard 的反代请求
+server {
+    listen 127.0.0.1:${upstream_port};
+    server_name ${domain};
+
+    root ${webroot};
+    index index.php index.html;
+
+    # 安全: 仅允许来自 JA3 Guard 的本地连接
+    allow 127.0.0.1;
+    deny all;
+
+    # 日志
+    access_log /var/log/nginx/ja3guard-upstream-access.log;
+    error_log  /var/log/nginx/ja3guard-upstream-error.log;
+
+    location / {
+        try_files \$uri /index.php\$is_args\$args;
+    }
+
+    location ~ \.php\$ {
+        try_files \$uri =404;
+        fastcgi_pass ${fastcgi_pass};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+
+        # 传递 JA3 Guard 注入的 header 给 PHP
+        fastcgi_param HTTP_X_JA3_TRUSTED \$http_x_ja3_trusted;
+        fastcgi_param HTTP_X_JA3_HASH    \$http_x_ja3_hash;
+        fastcgi_param HTTP_X_GUARD_SECRET \$http_x_guard_secret;
+    }
+
+    # 禁止访问隐藏文件
+    location ~ /\. {
+        deny all;
+    }
+}
+NGINXEOF
+
+    if [[ "$nginx_conf_dir" == "sites" ]]; then
+        vhost_conf="/etc/nginx/sites-available/ja3guard-upstream"
+        cp /tmp/ja3guard-upstream.conf "$vhost_conf"
+        ln -sf "$vhost_conf" /etc/nginx/sites-enabled/ja3guard-upstream
+        # 移除默认站点避免冲突
+        rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+    else
+        vhost_conf="/etc/nginx/conf.d/ja3guard-upstream.conf"
+        cp /tmp/ja3guard-upstream.conf "$vhost_conf"
+    fi
+    rm -f /tmp/ja3guard-upstream.conf
+
+    info "Nginx 配置已写入: $vhost_conf"
+
+    # 测试 Nginx 配置
+    if nginx -t 2>/dev/null; then
+        info "Nginx 配置测试通过"
+        systemctl reload nginx
+        info "Nginx 已重载"
+    else
+        error "Nginx 配置测试失败:"
+        nginx -t
+        exit 1
+    fi
+
+    # 验证上游端口是否监听
+    sleep 1
+    if ss -tlnp | grep -q ":${upstream_port}.*nginx"; then
+        info "Nginx 上游已监听 127.0.0.1:${upstream_port}"
+    else
+        warn "Nginx 可能未监听 ${upstream_port} 端口，请检查配置"
+    fi
+}
+
 # 生成配置文件
 setup_config() {
     step "配置 JA3 Guard"
@@ -526,17 +780,20 @@ start_service() {
 # 打印安装摘要
 print_summary() {
     local config_file="${DATA_DIR}/config.json"
-    local domain admin_password guard_secret
+    local domain admin_password guard_secret upstream_port webroot
 
     domain=$(grep -oP '"domain"\s*:\s*"\K[^"]+' "$config_file")
     admin_password=$(grep -oP '"admin_password"\s*:\s*"\K[^"]+' "$config_file")
     guard_secret=$(grep -oP '"guard_secret"\s*:\s*"\K[^"]+' "$config_file")
+    upstream_port=$(grep -oP '"upstream"\s*:\s*"http://[^:]+:\K[0-9]+' "$config_file" || echo "8080")
+    webroot="${JA3_WEBROOT:-/www/sspanel/public}"
 
     echo ""
     echo -e "${GREEN}============================================================${NC}"
     echo -e "${GREEN}  JA3 Guard 安装完成${NC}"
     echo -e "${GREEN}============================================================${NC}"
     echo ""
+    echo -e "${CYAN}  [JA3 Guard]${NC}"
     echo "  域名:          $domain"
     echo "  安装目录:      $INSTALL_DIR"
     echo "  数据目录:      $DATA_DIR"
@@ -546,13 +803,23 @@ print_summary() {
     echo -e "  管理面板密码:  ${YELLOW}${admin_password}${NC}"
     echo -e "  Guard Secret:  ${YELLOW}${guard_secret}${NC}"
     echo ""
+    echo -e "${CYAN}  [Nginx 上游]${NC}"
+    echo "  监听地址:      127.0.0.1:${upstream_port}"
+    echo "  网站根目录:    ${webroot}"
+    echo "  Nginx 日志:    /var/log/nginx/ja3guard-upstream-*.log"
+    echo ""
+    echo -e "${CYAN}  [请求链路]${NC}"
+    echo "  用户 → :443 (JA3 Guard) → 127.0.0.1:${upstream_port} (Nginx) → PHP-FPM"
+    echo ""
     echo "  ⚠ 请将 guard_secret 填入 SSPanel 的 config/domainReplace.php"
+    echo "  ⚠ 请将 SSPanel 代码部署到 ${webroot}"
     echo ""
     echo -e "${CYAN}  常用命令:${NC}"
     echo "    查看状态:    systemctl status ja3guard"
     echo "    查看日志:    journalctl -u ja3guard -f"
     echo "    重启服务:    systemctl restart ja3guard"
     echo "    停止服务:    systemctl stop ja3guard"
+    echo "    Nginx 日志:  tail -f /var/log/nginx/ja3guard-upstream-error.log"
     echo ""
     echo -e "${CYAN}  访问管理面板 (通过 SSH 隧道):${NC}"
     echo "    ssh -L 8443:localhost:8443 user@your-server"
@@ -560,6 +827,7 @@ print_summary() {
     echo ""
     echo -e "${CYAN}  验证:${NC}"
     echo "    curl -I https://${domain}"
+    echo "    curl http://127.0.0.1:${upstream_port}/  (直接测上游)"
     echo ""
     echo -e "${GREEN}============================================================${NC}"
 }
@@ -664,9 +932,11 @@ main() {
     detect_arch
     install_deps
     setup_go
+    setup_nginx
     check_ports
     build_app
     setup_config
+    setup_nginx_vhost
     setup_systemd
     setup_firewall
     start_service
