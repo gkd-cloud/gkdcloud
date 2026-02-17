@@ -15,7 +15,7 @@ body { font-family: -apple-system, 'SF Pro', system-ui, monospace; background: v
 header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 56px; }
 header h1 { font-size: 16px; font-weight: 600; margin-right: 32px; }
 header h1 span { color: var(--green); }
-nav { display: flex; gap: 4px; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
 nav button { background: none; border: none; color: var(--text2); padding: 8px 16px; cursor: pointer; font-size: 14px; border-radius: 6px; }
 nav button:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 nav button.active { color: var(--text); background: rgba(255,255,255,0.08); }
@@ -45,8 +45,10 @@ button.btn:hover { background: rgba(255,255,255,0.06); }
 button.btn.primary { background: rgba(63,185,80,0.15); border-color: var(--green); color: var(--green); }
 button.btn.danger { background: rgba(248,81,73,0.1); border-color: transparent; color: var(--red); }
 button.btn.sm { padding: 3px 10px; font-size: 12px; }
+button.btn.warn { background: rgba(210,153,34,0.15); border-color: var(--yellow); color: var(--yellow); }
 .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .toolbar h2 { font-size: 16px; font-weight: 600; }
+.toolbar .btn-group { display: flex; gap: 8px; }
 input[type=text] { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 13px; outline: none; }
 input[type=text]:focus { border-color: var(--blue); }
 .form-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
@@ -62,6 +64,33 @@ input[type=text]:focus { border-color: var(--blue); }
 .setting-row .info .title { font-size: 14px; font-weight: 500; }
 .setting-row .info .desc { font-size: 12px; color: var(--text2); margin-top: 2px; }
 .empty { text-align: center; padding: 40px; color: var(--text3); }
+
+/* Nginx 管理相关样式 */
+.nx-layout { display: flex; gap: 16px; height: calc(100vh - 180px); min-height: 500px; }
+.nx-sidebar { width: 240px; flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; }
+.nx-sidebar-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.nx-sidebar-header span { font-size: 12px; color: var(--text2); text-transform: uppercase; font-weight: 500; }
+.nx-list { flex: 1; overflow-y: auto; padding: 4px; }
+.nx-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.nx-item:hover { background: rgba(255,255,255,0.04); }
+.nx-item.active { background: rgba(88,166,255,0.12); color: var(--blue); }
+.nx-item .nx-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.nx-item .nx-dot.off { background: var(--text3); }
+.nx-editor { flex: 1; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.nx-editor-header { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.nx-editor-header .nx-filename { font-size: 14px; font-weight: 500; color: var(--blue); }
+.nx-editor-body { flex: 1; position: relative; }
+.nx-editor-body textarea { width: 100%; height: 100%; background: var(--bg); color: var(--text); border: none; padding: 16px; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.6; resize: none; outline: none; tab-size: 4; }
+.nx-editor-footer { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.nx-status { padding: 12px 16px; border-top: 1px solid var(--border); }
+.nx-status-bar { font-size: 12px; color: var(--text2); }
+.nx-status-bar.ok { color: var(--green); }
+.nx-status-bar.err { color: var(--red); }
+.nx-info { display: flex; gap: 16px; margin-bottom: 16px; }
+.nx-info .card { flex: 1; }
+.nx-empty { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--text3); font-size: 14px; }
+.nx-new-form { padding: 16px; }
+.nx-new-form input { width: 100%; margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -73,6 +102,7 @@ input[type=text]:focus { border-color: var(--blue); }
     <button onclick="showPage('summary')">JA3 Fingerprints</button>
     <button onclick="showPage('whitelist')">Whitelist</button>
     <button onclick="showPage('logs')">Request Logs</button>
+    <button onclick="showPage('nginx')">Nginx</button>
     <button onclick="showPage('settings')">Settings</button>
   </nav>
 </header>
@@ -126,6 +156,48 @@ input[type=text]:focus { border-color: var(--blue); }
   <div class="pagination" id="logs-pagination"></div>
 </div>
 
+<!-- Nginx 管理 -->
+<div id="page-nginx" class="page">
+  <div class="toolbar">
+    <h2>Nginx Sites</h2>
+    <div class="btn-group">
+      <button class="btn sm" onclick="nxTest()">Test Config</button>
+      <button class="btn sm primary" onclick="nxReload()">Reload Nginx</button>
+    </div>
+  </div>
+  <div id="nx-status-msg"></div>
+  <div class="nx-layout">
+    <!-- 左侧站点列表 -->
+    <div class="nx-sidebar">
+      <div class="nx-sidebar-header">
+        <span>Sites</span>
+        <button class="btn sm primary" onclick="nxNewSite()">+ New</button>
+      </div>
+      <div class="nx-list" id="nx-list"></div>
+    </div>
+    <!-- 右侧编辑器 -->
+    <div class="nx-editor">
+      <div id="nx-editor-wrap" style="display:none;flex-direction:column;flex:1;">
+        <div class="nx-editor-header">
+          <span class="nx-filename" id="nx-filename">-</span>
+          <div class="btn-group">
+            <button class="btn sm danger" onclick="nxDelete()">Delete</button>
+            <button class="btn sm primary" onclick="nxSave()">Save</button>
+          </div>
+        </div>
+        <div class="nx-editor-body">
+          <textarea id="nx-content" spellcheck="false" placeholder="# Nginx server block configuration..."></textarea>
+        </div>
+        <div class="nx-editor-footer">
+          <span class="nx-status-bar" id="nx-save-status"></span>
+          <span style="font-size:12px;color:var(--text3)">Save: Ctrl+S</span>
+        </div>
+      </div>
+      <div id="nx-empty" class="nx-empty">Select a site or create a new one</div>
+    </div>
+  </div>
+</div>
+
 <!-- Settings -->
 <div id="page-settings" class="page">
   <div class="toolbar"><h2>Settings</h2></div>
@@ -170,7 +242,7 @@ function showPage(name) {
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   event.target.classList.add('active');
-  const loaders = { dashboard: loadDashboard, summary: loadSummary, whitelist: loadWhitelist, logs: loadLogs, settings: loadSettings };
+  const loaders = { dashboard: loadDashboard, summary: loadSummary, whitelist: loadWhitelist, logs: loadLogs, settings: loadSettings, nginx: loadNginx };
   if (loaders[name]) loaders[name]();
 }
 
@@ -318,6 +390,207 @@ async function cleanupLogs() {
   await api('api/logs/cleanup', {method: 'POST'});
   alert('Done');
 }
+
+// ============================================================
+// Nginx 管理
+// ============================================================
+let nxSites = [];
+let nxCurrent = null;    // 当前选中的站点名
+let nxDirty = false;     // 编辑器是否有未保存的修改
+
+async function loadNginx() {
+  const data = await api('api/nginx/sites');
+  nxSites = data.sites || [];
+  renderNxList();
+  // 如果之前有选中的，重新选中
+  if (nxCurrent) {
+    const found = nxSites.find(s => s.name === nxCurrent);
+    if (found) {
+      nxSelect(found.name);
+    } else {
+      nxCurrent = null;
+      nxShowEmpty();
+    }
+  }
+}
+
+function renderNxList() {
+  const list = document.getElementById('nx-list');
+  if (nxSites.length === 0) {
+    list.innerHTML = '<div class="empty" style="padding:20px;font-size:13px">No sites configured</div>';
+    return;
+  }
+  list.innerHTML = nxSites.map(s => `
+    <div class="nx-item ${s.name === nxCurrent ? 'active' : ''}" onclick="nxSelect('${escHtml(s.name)}')">
+      <span>${escHtml(s.name)}</span>
+      <span class="nx-dot ${s.enabled ? '' : 'off'}" title="${s.enabled ? 'Enabled' : 'Disabled'}"></span>
+    </div>
+  `).join('');
+}
+
+function nxSelect(name) {
+  if (nxDirty && nxCurrent !== name) {
+    if (!confirm('You have unsaved changes. Discard?')) return;
+  }
+  nxCurrent = name;
+  nxDirty = false;
+  const site = nxSites.find(s => s.name === name);
+  if (!site) return;
+
+  document.getElementById('nx-empty').style.display = 'none';
+  const wrap = document.getElementById('nx-editor-wrap');
+  wrap.style.display = 'flex';
+  document.getElementById('nx-filename').textContent = site.filename;
+  document.getElementById('nx-content').value = site.content;
+  document.getElementById('nx-save-status').textContent = 'Last saved: ' + site.updated_at;
+  document.getElementById('nx-save-status').className = 'nx-status-bar';
+  renderNxList();
+}
+
+function nxShowEmpty() {
+  document.getElementById('nx-editor-wrap').style.display = 'none';
+  document.getElementById('nx-empty').style.display = 'flex';
+}
+
+// 新建站点
+function nxNewSite() {
+  const name = prompt('Site name (letters, numbers, dots, dashes):', '');
+  if (!name) return;
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(name)) {
+    alert('Invalid name. Use letters, numbers, dots, dashes only.');
+    return;
+  }
+
+  const template = `# ${name} - Created via JA3 Guard
+server {
+    listen 127.0.0.1:8080;
+    server_name example.com;
+
+    root /www/example/public;
+    index index.php index.html;
+
+    location / {
+        try_files $uri /index.php$is_args$args;
+    }
+
+    location ~ \\.php$ {
+        try_files $uri =404;
+        fastcgi_pass unix:/run/php/php-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\\. {
+        deny all;
+    }
+}
+`;
+
+  // 先占位到列表，再打开编辑器
+  nxSites.push({name: name, filename: name + '.conf', content: template, enabled: true, updated_at: 'new'});
+  nxCurrent = name;
+  nxDirty = true;
+  renderNxList();
+
+  document.getElementById('nx-empty').style.display = 'none';
+  const wrap = document.getElementById('nx-editor-wrap');
+  wrap.style.display = 'flex';
+  document.getElementById('nx-filename').textContent = name + '.conf';
+  document.getElementById('nx-content').value = template;
+  document.getElementById('nx-save-status').textContent = 'Not saved yet';
+  document.getElementById('nx-save-status').className = 'nx-status-bar err';
+}
+
+// 保存
+async function nxSave() {
+  if (!nxCurrent) return;
+  const content = document.getElementById('nx-content').value;
+  const status = document.getElementById('nx-save-status');
+
+  try {
+    const res = await api('api/nginx/sites', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: nxCurrent, content: content})
+    });
+    if (res.error) {
+      status.textContent = 'Error: ' + res.error;
+      status.className = 'nx-status-bar err';
+      return;
+    }
+    nxDirty = false;
+    status.textContent = 'Saved at ' + new Date().toLocaleTimeString();
+    status.className = 'nx-status-bar ok';
+    // 刷新列表
+    await loadNginx();
+  } catch (e) {
+    status.textContent = 'Save failed: ' + e.message;
+    status.className = 'nx-status-bar err';
+  }
+}
+
+// 删除
+async function nxDelete() {
+  if (!nxCurrent) return;
+  if (!confirm('Delete site "' + nxCurrent + '"? This cannot be undone.')) return;
+  const res = await api('api/nginx/sites/' + encodeURIComponent(nxCurrent), {method: 'DELETE'});
+  if (res.error) {
+    alert('Error: ' + res.error);
+    return;
+  }
+  nxCurrent = null;
+  nxDirty = false;
+  nxShowEmpty();
+  await loadNginx();
+}
+
+// 测试配置
+async function nxTest() {
+  const msg = document.getElementById('nx-status-msg');
+  msg.innerHTML = '<div style="padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:13px;margin-bottom:12px;color:var(--text2)">Testing...</div>';
+  const res = await api('api/nginx/test', {method: 'POST'});
+  if (res.ok) {
+    msg.innerHTML = '<div style="padding:8px 12px;background:rgba(63,185,80,0.1);border:1px solid var(--green);border-radius:6px;font-size:13px;margin-bottom:12px;color:var(--green)">nginx -t OK</div>';
+  } else {
+    msg.innerHTML = `<div style="padding:8px 12px;background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:6px;font-size:13px;margin-bottom:12px;color:var(--red);white-space:pre-wrap">${escHtml(res.output)}</div>`;
+  }
+  setTimeout(() => { msg.innerHTML = ''; }, 8000);
+}
+
+// Reload
+async function nxReload() {
+  const msg = document.getElementById('nx-status-msg');
+  const res = await api('api/nginx/reload', {method: 'POST'});
+  if (res.error) {
+    msg.innerHTML = `<div style="padding:8px 12px;background:rgba(248,81,73,0.1);border:1px solid var(--red);border-radius:6px;font-size:13px;margin-bottom:12px;color:var(--red);white-space:pre-wrap">${escHtml(res.error)}</div>`;
+  } else {
+    msg.innerHTML = `<div style="padding:8px 12px;background:rgba(63,185,80,0.1);border:1px solid var(--green);border-radius:6px;font-size:13px;margin-bottom:12px;color:var(--green)">Nginx reloaded at ${res.time}</div>`;
+  }
+  setTimeout(() => { msg.innerHTML = ''; }, 5000);
+}
+
+// 标记 dirty
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('nx-content');
+  ta.addEventListener('input', () => { nxDirty = true; });
+  // Ctrl+S 快捷保存
+  ta.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      nxSave();
+    }
+    // Tab 缩进
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      ta.value = ta.value.substring(0, start) + '    ' + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = start + 4;
+      nxDirty = true;
+    }
+  });
+});
 
 // Init
 loadDashboard();
