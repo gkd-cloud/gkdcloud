@@ -195,6 +195,12 @@ func runNode(cfg *Config, store *Store) {
 		}
 	}()
 
+	// --- 节点上报 ---
+	if cfg.MasterURL != "" && cfg.NodeToken != "" {
+		reporter := NewReporter(cfg, store)
+		go reporter.Start()
+	}
+
 	log.Println("[Node] JA3 Guard Node 已就绪")
 
 	// 优雅关闭
