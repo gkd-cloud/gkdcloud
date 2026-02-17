@@ -21,6 +21,8 @@ readonly BIN_PATH="/usr/local/bin/ja3guard"
 readonly SERVICE_NAME="ja3guard"
 readonly GO_VERSION="1.22.5"
 readonly GO_MIN_VERSION="1.22"
+readonly REPO_URL="https://github.com/gkd-cloud/gkdcloud.git"
+readonly REPO_SUBDIR="ja3guard"
 
 # 颜色
 RED='\033[0;31m'
@@ -239,9 +241,22 @@ build_app() {
         source_dir="$INSTALL_DIR"
         info "使用已有源码: $source_dir"
     else
-        error "未找到 JA3 Guard 源码"
-        echo "  请确保在 ja3guard 目录下运行此脚本，或将源码放在 ${INSTALL_DIR}/"
-        exit 1
+        # 本地没有源码，从 GitHub 克隆
+        info "未找到本地源码，从 GitHub 克隆 ..."
+        local clone_dir
+        clone_dir=$(mktemp -d)
+        if ! git clone --depth 1 "$REPO_URL" "$clone_dir"; then
+            error "克隆仓库失败，请检查网络"
+            rm -rf "$clone_dir"
+            exit 1
+        fi
+        source_dir="${clone_dir}/${REPO_SUBDIR}"
+        if [[ ! -f "${source_dir}/go.mod" ]]; then
+            error "克隆的仓库中未找到 ${REPO_SUBDIR}/go.mod"
+            rm -rf "$clone_dir"
+            exit 1
+        fi
+        info "源码已克隆到临时目录"
     fi
 
     # 复制源码到安装目录（如果不在安装目录）
@@ -533,8 +548,7 @@ upgrade() {
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
     if [[ ! -f "${script_dir}/go.mod" ]] || ! grep -q "module ja3guard" "${script_dir}/go.mod" 2>/dev/null; then
-        error "请在 ja3guard 源码目录下运行升级"
-        exit 1
+        info "未检测到本地源码，将从 GitHub 拉取最新版本"
     fi
 
     # 检查当前是否运行中
