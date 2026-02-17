@@ -53,13 +53,80 @@ JA3 Guard 在 TLS 握手阶段截获原始 ClientHello 字节，计算 JA3 hash�
 
 ## 安装
 
+两种部署方式，选其一即可：
+
+| 方式 | 适用场景 | 优势 |
+|------|---------|------|
+| **裸机部署** | 独立 VPS 只跑 JA3 Guard | 更轻量，无 Docker 开销，systemd 管理 |
+| **Docker 部署** | 与其他服务共存，或偏好容器化 | 环境隔离，一条命令启停 |
+
 ### 前置条件
 
-- Docker + Docker Compose
 - 一个独立的订阅子域名（如 `sub.example.com`），DNS 直连到服务器，**不走 CDN**
 - 服务器 80/443 端口可用（如果主站也在同一台服务器，见下方「同机部署」章节）
 
-### 第一步：克隆并进入目录
+---
+
+### 方式一：裸机一键部署（推荐用于独立 VPS）
+
+支持 Debian 11/12、Ubuntu 20.04+、CentOS/RHEL 8+，x86_64 和 ARM64。
+
+```bash
+cd /opt
+git clone <repo-url> gkdcloud
+cd gkdcloud/ja3guard
+sudo bash install.sh
+```
+
+脚本会自动完成：
+
+1. 检测操作系统和 CPU 架构
+2. 安装系统依赖（curl, git, ca-certificates 等）
+3. 检查/安装 Go 1.22+（已有则跳过）
+4. 检查 80/443 端口占用并提示
+5. 编译 JA3 Guard 二进制文件
+6. 交互式生成配置文件（域名、上游地址、密码等）
+7. 创建 systemd 服务（安全加固 + 低端口绑定）
+8. 配置防火墙放行（ufw / firewalld）
+9. 启动服务并验证
+
+安装完成后：
+
+```bash
+# 查看状态
+systemctl status ja3guard
+
+# 查看实时日志
+journalctl -u ja3guard -f
+
+# 重启
+systemctl restart ja3guard
+
+# 停止
+systemctl stop ja3guard
+```
+
+**升级**（拉取新代码后）：
+
+```bash
+cd /opt/gkdcloud/ja3guard
+git pull
+sudo bash install.sh upgrade
+```
+
+**卸载**（保留数据目录）：
+
+```bash
+sudo bash install.sh uninstall
+```
+
+---
+
+### 方式二：Docker 部署
+
+需要 Docker + Docker Compose。
+
+#### 第一步：克隆并进入目录
 
 ```bash
 cd /opt  # 或其他你喜欢的目录
@@ -67,7 +134,7 @@ git clone <repo-url> gkdcloud
 cd gkdcloud/ja3guard
 ```
 
-### 第二步：创建配置文件
+#### 第二步：创建配置文件
 
 ```bash
 mkdir -p data
@@ -104,7 +171,7 @@ cp config.example.json data/config.json
 | `data_dir` | 否 | 数据目录，默认 `/data`（Docker 内路径） |
 | `log_enabled` | 否 | 是否记录请求日志，默认 `true`。采集完指纹后可在面板关闭 |
 
-### 第三步：配置 PHP 端
+#### 第三步：配置 PHP 端
 
 编辑 SSPanel 的 `config/domainReplace.php`：
 
@@ -121,7 +188,7 @@ return [
 ];
 ```
 
-### 第四步：配置上游 Nginx
+#### 第四步：配置上游 Nginx
 
 JA3 Guard 会将请求反代到你的 Nginx。确保 Nginx 的订阅 server block 监听在配置的 `upstream` 端口上。
 
@@ -148,13 +215,13 @@ server {
 }
 ```
 
-### 第五步：配置 DNS
+#### 第五步：配置 DNS
 
 将订阅子域名的 DNS A 记录直接指向服务器 IP，**不开启 CDN 代理**。
 
 如果使用 GTM（全局流量管理），在 GTM 中配置该子域名解析到三网质量好的反代服务器。
 
-### 第六步：启动服务
+#### 第六步：启动服务
 
 ```bash
 docker compose up -d --build
