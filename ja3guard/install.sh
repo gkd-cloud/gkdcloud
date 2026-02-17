@@ -395,6 +395,14 @@ build_app() {
         info "源码已复制到 $INSTALL_DIR"
     fi
 
+    # 确保 install.sh 存在（go:embed 需要），curl|bash 方式运行时脚本自身不在磁盘上
+    if [[ ! -f "${INSTALL_DIR}/install.sh" ]]; then
+        info "下载 install.sh (go:embed 需要) ..."
+        curl -fsSL "https://raw.githubusercontent.com/gkd-cloud/gkdcloud/main/${REPO_SUBDIR}/install.sh" \
+            -o "${INSTALL_DIR}/install.sh" \
+            || { error "下载 install.sh 失败"; exit 1; }
+    fi
+
     cd "$INSTALL_DIR"
 
     # 设置 Go 代理（中国大陆加速）
