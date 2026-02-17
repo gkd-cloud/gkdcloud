@@ -3,10 +3,11 @@
 # JA3 Guard 一键部署脚本（裸机版，无需 Docker）
 #
 # 用法:
-#   install.sh master   - 安装管理面板 (Master 模式)
-#   install.sh node     - 安装 JA3 反代节点 (Node 模式，默认)
-#   install.sh upgrade  - 升级现有安装
-#   install.sh uninstall- 卸载
+#   install.sh master    - 安装管理面板 (Master 模式)
+#   install.sh node      - 安装 JA3 反代节点 (Node 模式，默认)
+#   install.sh upgrade   - 升级现有安装
+#   install.sh uninstall - 卸载（保留数据）
+#   install.sh purge     - 彻底卸载（删除所有数据、配置、证书）
 #
 # 交互式:
 #   curl -fsSL <url>/install.sh | sudo bash -s -- master
@@ -956,12 +957,23 @@ print_summary() {
 # 卸载功能
 # ============================================================
 uninstall() {
+    local purge="${1:-}"
+
     step "卸载 JA3 Guard"
 
-    echo ""
-    if ! confirm "确认卸载 JA3 Guard？数据目录将保留。"; then
-        info "已取消"
-        exit 0
+    if [[ "$purge" == "purge" ]]; then
+        echo ""
+        warn "彻底卸载将删除所有数据（配置、证书、白名单、日志）"
+        if ! confirm "确认彻底卸载？此操作不可恢复！"; then
+            info "已取消"
+            exit 0
+        fi
+    else
+        echo ""
+        if ! confirm "确认卸载 JA3 Guard？数据目录将保留。"; then
+            info "已取消"
+            exit 0
+        fi
     fi
 
     # 停止服务
@@ -984,19 +996,50 @@ uninstall() {
         info "二进制文件已移除: $BIN_PATH"
     fi
 
-    # 移除源码（保留数据）
-    if [[ -d "$INSTALL_DIR" ]]; then
-        # 只删 .go 文件和 web 目录，保留 data/
-        find "$INSTALL_DIR" -maxdepth 1 -name "*.go" -delete 2>/dev/null || true
-        rm -f "${INSTALL_DIR}/go.mod" "${INSTALL_DIR}/go.sum" 2>/dev/null || true
-        rm -rf "${INSTALL_DIR}/web" 2>/dev/null || true
-        info "源码文件已清理（数据目录 ${DATA_DIR} 已保留）"
+    # 移除 Nginx 配置
+    local nginx_changed=false
+    if [[ -f /etc/nginx/sites-available/ja3guard-upstream ]]; then
+        rm -f /etc/nginx/sites-enabled/ja3guard-upstream
+        rm -f /etc/nginx/sites-available/ja3guard-upstream
+        nginx_changed=true
+        info "Nginx 站点配置已移除 (sites-available)"
+    fi
+    if [[ -f /etc/nginx/conf.d/ja3guard-upstream.conf ]]; then
+        rm -f /etc/nginx/conf.d/ja3guard-upstream.conf
+        nginx_changed=true
+        info "Nginx 站点配置已移除 (conf.d)"
+    fi
+    if $nginx_changed && command -v nginx &>/dev/null; then
+        nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || true
+        info "Nginx 已重载"
+    fi
+
+    if [[ "$purge" == "purge" ]]; then
+        # 彻底卸载: 删除整个安装目录（含数据）
+        if [[ -d "$INSTALL_DIR" ]]; then
+            rm -rf "$INSTALL_DIR"
+            info "安装目录已删除: $INSTALL_DIR"
+        fi
+    else
+        # 普通卸载: 只删源码，保留数据
+        if [[ -d "$INSTALL_DIR" ]]; then
+            find "$INSTALL_DIR" -maxdepth 1 -name "*.go" -delete 2>/dev/null || true
+            rm -f "${INSTALL_DIR}/go.mod" "${INSTALL_DIR}/go.sum" 2>/dev/null || true
+            rm -rf "${INSTALL_DIR}/web" 2>/dev/null || true
+            info "源码文件已清理（数据目录 ${DATA_DIR} 已保留）"
+        fi
     fi
 
     echo ""
     info "卸载完成"
-    echo "  数据目录保留在: $DATA_DIR"
-    echo "  如需彻底删除: rm -rf $INSTALL_DIR"
+    if [[ "$purge" != "purge" ]]; then
+        echo "  数据目录保留在: $DATA_DIR"
+        echo "  如需彻底删除: sudo bash install.sh purge"
+    else
+        echo "  所有文件已清除，可重新安装:"
+        echo "    sudo bash install.sh master  # 安装管理面板"
+        echo "    sudo bash install.sh node    # 安装反代节点"
+    fi
 }
 
 # ============================================================
@@ -1095,6 +1138,10 @@ case "${1:-}" in
         check_root
         uninstall
         ;;
+    purge)
+        check_root
+        uninstall purge
+        ;;
     upgrade|update)
         check_root
         detect_os
@@ -1109,12 +1156,16 @@ case "${1:-}" in
         echo "  master     安装 Master 管理面板（不含 Nginx/PHP）"
         echo "  node       安装 Node 反代节点（含 Nginx/PHP，默认）"
         echo "  upgrade    升级现有安装"
-        echo "  uninstall  卸载 JA3 Guard"
+        echo "  uninstall  卸载（保留数据目录）"
+        echo "  purge      彻底卸载（删除所有数据）"
         echo "  help       显示帮助"
         echo ""
         echo "远程安装:"
         echo "  curl -fsSL <url>/install.sh | sudo bash -s -- master"
         echo "  curl -fsSL <url>/install.sh | sudo bash -s -- node"
+        echo ""
+        echo "彻底卸载后重装:"
+        echo "  sudo bash install.sh purge && sudo bash install.sh master"
         ;;
     *)
         # 默认: 询问模式或使用环境变量
