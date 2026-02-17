@@ -91,6 +91,36 @@ input[type=text]:focus { border-color: var(--blue); }
 .nx-empty { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--text3); font-size: 14px; }
 .nx-new-form { padding: 16px; }
 .nx-new-form input { width: 100%; margin-bottom: 8px; }
+
+/* Nodes 管理样式 */
+.node-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.node-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; position: relative; }
+.node-card:hover { border-color: var(--text3); }
+.node-card .node-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.node-card .node-name { font-size: 15px; font-weight: 600; }
+.node-card .node-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.node-card .node-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.node-card .node-dot.off { background: var(--text3); }
+.node-card .node-info { font-size: 12px; color: var(--text2); line-height: 1.8; }
+.node-card .node-info span { color: var(--text); }
+.node-card .node-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.node-card .node-stat { text-align: center; }
+.node-card .node-stat .num { font-size: 18px; font-weight: 600; }
+.node-card .node-stat .lbl { font-size: 10px; color: var(--text2); text-transform: uppercase; }
+.node-card .node-actions { display: flex; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { font-size: 16px; font-weight: 600; }
+.modal-body { padding: 20px; }
+.modal-body label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; margin-top: 12px; text-transform: uppercase; }
+.modal-body label:first-child { margin-top: 0; }
+.modal-body input, .modal-body select, .modal-body textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; outline: none; font-family: inherit; }
+.modal-body input:focus, .modal-body select:focus, .modal-body textarea:focus { border-color: var(--blue); }
+.modal-body textarea { min-height: 80px; resize: vertical; font-family: 'SF Mono', monospace; }
+.modal-footer { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+.token-display { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: 12px; color: var(--blue); word-break: break-all; margin-top: 4px; cursor: pointer; }
+.token-display:hover { border-color: var(--blue); }
 </style>
 </head>
 <body>
@@ -103,6 +133,7 @@ input[type=text]:focus { border-color: var(--blue); }
     <button onclick="showPage('whitelist')">Whitelist</button>
     <button onclick="showPage('logs')">Request Logs</button>
     <button onclick="showPage('nginx')">Nginx</button>
+    <button onclick="showPage('nodes')">Nodes</button>
     <button onclick="showPage('settings')">Settings</button>
   </nav>
 </header>
@@ -134,7 +165,9 @@ input[type=text]:focus { border-color: var(--blue); }
 
 <!-- Whitelist -->
 <div id="page-whitelist" class="page">
-  <div class="toolbar"><h2>Whitelist Management</h2></div>
+  <div class="toolbar"><h2>Whitelist Management</h2>
+    <button class="btn sm warn" onclick="syncWhitelist()">Sync to All Nodes</button>
+  </div>
   <div class="form-row">
     <input type="text" id="wl-hash" placeholder="JA3 Hash" style="width:340px">
     <input type="text" id="wl-note" placeholder="Note (e.g. iOS 17 SR)" style="width:200px">
@@ -198,6 +231,60 @@ input[type=text]:focus { border-color: var(--blue); }
   </div>
 </div>
 
+<!-- Nodes 管理 -->
+<div id="page-nodes" class="page">
+  <div class="toolbar">
+    <h2>Node Management</h2>
+    <div class="btn-group">
+      <button class="btn sm" onclick="loadNodes()">Refresh</button>
+      <button class="btn sm primary" onclick="showNodeModal()">+ Add Node</button>
+    </div>
+  </div>
+  <div class="node-grid" id="node-grid">
+    <div class="empty" style="grid-column:1/-1">Loading nodes...</div>
+  </div>
+</div>
+
+<!-- Node 添加/编辑模态框 -->
+<div id="node-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeNodeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="node-modal-title">Add Node</h3>
+      <button class="btn sm" onclick="closeNodeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="node-edit-id">
+      <label>Node Name</label>
+      <input type="text" id="node-name" placeholder="e.g. hk-01">
+      <label>Host (IP or Domain)</label>
+      <input type="text" id="node-host" placeholder="e.g. 1.2.3.4">
+      <label>SSH Port</label>
+      <input type="text" id="node-ssh-port" placeholder="22" value="22">
+      <label>SSH User</label>
+      <input type="text" id="node-ssh-user" placeholder="root" value="root">
+      <label>Auth Type</label>
+      <select id="node-auth-type" onchange="toggleAuthFields()">
+        <option value="password">Password</option>
+        <option value="key">SSH Key</option>
+      </select>
+      <div id="auth-password-field">
+        <label>SSH Password</label>
+        <input type="text" id="node-ssh-pass" placeholder="SSH password">
+      </div>
+      <div id="auth-key-field" style="display:none">
+        <label>SSH Private Key</label>
+        <textarea id="node-ssh-key" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
+      </div>
+      <label>Note</label>
+      <input type="text" id="node-note" placeholder="Optional note">
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeNodeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveNode()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Settings -->
 <div id="page-settings" class="page">
   <div class="toolbar"><h2>Settings</h2></div>
@@ -242,7 +329,7 @@ function showPage(name) {
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   event.target.classList.add('active');
-  const loaders = { dashboard: loadDashboard, summary: loadSummary, whitelist: loadWhitelist, logs: loadLogs, settings: loadSettings, nginx: loadNginx };
+  const loaders = { dashboard: loadDashboard, summary: loadSummary, whitelist: loadWhitelist, logs: loadLogs, settings: loadSettings, nginx: loadNginx, nodes: loadNodes };
   if (loaders[name]) loaders[name]();
 }
 
@@ -336,6 +423,18 @@ async function addWhitelist() {
   document.getElementById('wl-hash').value = '';
   document.getElementById('wl-note').value = '';
   loadWhitelist();
+}
+
+async function syncWhitelist() {
+  if (!confirm('Push whitelist to all nodes via SSH?')) return;
+  const res = await api('api/whitelist/sync', {method: 'POST'});
+  if (res.error) {
+    alert('Error: ' + res.error);
+    return;
+  }
+  const results = res.results || [];
+  const summary = results.map(r => `${r.name}: ${r.ok ? 'OK' : 'FAILED - ' + r.error}`).join('\n');
+  alert('Whitelist Sync Results:\n\n' + (summary || 'No nodes configured'));
 }
 
 async function removeWL(hash) {
@@ -591,6 +690,249 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// ============================================================
+// Nodes 管理
+// ============================================================
+let nodesList = [];
+
+async function loadNodes() {
+  const data = await api('api/nodes');
+  nodesList = data.nodes || [];
+  renderNodes();
+}
+
+function renderNodes() {
+  const grid = document.getElementById('node-grid');
+  if (nodesList.length === 0) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:40px">No nodes configured. Click "+ Add Node" to get started.</div>';
+    return;
+  }
+  grid.innerHTML = nodesList.map(n => {
+    const online = n.online;
+    const st = n.status || {};
+    return `
+    <div class="node-card">
+      <div class="node-header">
+        <div>
+          <span class="node-dot ${online ? 'on' : 'off'}"></span>
+          <span class="node-name">${escHtml(n.name)}</span>
+        </div>
+        <span class="badge ${online ? 'ok' : 'no'}">${online ? 'ONLINE' : 'OFFLINE'}</span>
+      </div>
+      <div class="node-info">
+        Host: <span>${escHtml(n.host)}:${n.ssh_port}</span><br>
+        Auth: <span>${n.auth_type === 'key' ? 'SSH Key' : 'Password'}</span> (${escHtml(n.ssh_user)})<br>
+        ${st.domain ? `Domain: <span>${escHtml(st.domain)}</span><br>` : ''}
+        ${st.upstream ? `Upstream: <span>${escHtml(st.upstream)}</span><br>` : ''}
+        ${n.last_heartbeat ? `Last seen: <span>${escHtml(n.last_heartbeat)}</span>` : 'Never connected'}
+      </div>
+      ${online && st ? `
+      <div class="node-stats">
+        <div class="node-stat"><div class="num blue">${st.total_requests || 0}</div><div class="lbl">Requests</div></div>
+        <div class="node-stat"><div class="num green">${st.trusted_count || 0}</div><div class="lbl">Trusted</div></div>
+        <div class="node-stat"><div class="num red">${st.blocked_count || 0}</div><div class="lbl">Blocked</div></div>
+      </div>` : ''}
+      <div class="node-actions">
+        <button class="btn sm primary" onclick="sshTest('${escHtml(n.id)}',this)">Test SSH</button>
+        <button class="btn sm" onclick="sshInfo('${escHtml(n.id)}')">System Info</button>
+        <button class="btn sm" onclick="showNodeToken('${escHtml(n.id)}')">Token</button>
+        <button class="btn sm" onclick="editNode('${escHtml(n.id)}')">Edit</button>
+        <button class="btn sm danger" onclick="deleteNode('${escHtml(n.id)}','${escHtml(n.name)}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleAuthFields() {
+  const authType = document.getElementById('node-auth-type').value;
+  document.getElementById('auth-password-field').style.display = authType === 'password' ? 'block' : 'none';
+  document.getElementById('auth-key-field').style.display = authType === 'key' ? 'block' : 'none';
+}
+
+function showNodeModal(editData) {
+  document.getElementById('node-modal').style.display = 'flex';
+  if (editData) {
+    document.getElementById('node-modal-title').textContent = 'Edit Node';
+    document.getElementById('node-edit-id').value = editData.id || '';
+    document.getElementById('node-name').value = editData.name || '';
+    document.getElementById('node-host').value = editData.host || '';
+    document.getElementById('node-ssh-port').value = editData.ssh_port || 22;
+    document.getElementById('node-ssh-user').value = editData.ssh_user || 'root';
+    document.getElementById('node-auth-type').value = editData.auth_type || 'password';
+    document.getElementById('node-ssh-pass').value = editData.ssh_pass || '';
+    document.getElementById('node-ssh-key').value = editData.ssh_key || '';
+    document.getElementById('node-note').value = editData.note || '';
+  } else {
+    document.getElementById('node-modal-title').textContent = 'Add Node';
+    document.getElementById('node-edit-id').value = '';
+    document.getElementById('node-name').value = '';
+    document.getElementById('node-host').value = '';
+    document.getElementById('node-ssh-port').value = '22';
+    document.getElementById('node-ssh-user').value = 'root';
+    document.getElementById('node-auth-type').value = 'password';
+    document.getElementById('node-ssh-pass').value = '';
+    document.getElementById('node-ssh-key').value = '';
+    document.getElementById('node-note').value = '';
+  }
+  toggleAuthFields();
+}
+
+function closeNodeModal() {
+  document.getElementById('node-modal').style.display = 'none';
+}
+
+async function saveNode() {
+  const id = document.getElementById('node-edit-id').value;
+  const payload = {
+    name: document.getElementById('node-name').value.trim(),
+    host: document.getElementById('node-host').value.trim(),
+    ssh_port: parseInt(document.getElementById('node-ssh-port').value) || 22,
+    ssh_user: document.getElementById('node-ssh-user').value.trim() || 'root',
+    auth_type: document.getElementById('node-auth-type').value,
+    ssh_pass: document.getElementById('node-ssh-pass').value,
+    ssh_key: document.getElementById('node-ssh-key').value,
+    note: document.getElementById('node-note').value.trim(),
+  };
+
+  if (!payload.name) return alert('Node name is required');
+  if (!payload.host) return alert('Host is required');
+
+  let res;
+  if (id) {
+    res = await api('api/nodes/' + encodeURIComponent(id), {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+  } else {
+    res = await api('api/nodes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+  }
+
+  if (res.error) {
+    alert('Error: ' + res.error);
+    return;
+  }
+
+  closeNodeModal();
+  await loadNodes();
+}
+
+async function editNode(id) {
+  const res = await api('api/nodes/' + encodeURIComponent(id));
+  if (res.error) {
+    alert('Error: ' + res.error);
+    return;
+  }
+  showNodeModal(res);
+}
+
+async function deleteNode(id, name) {
+  if (!confirm('Delete node "' + name + '"? This cannot be undone.')) return;
+  const res = await api('api/nodes/' + encodeURIComponent(id), {method: 'DELETE'});
+  if (res.error) {
+    alert('Error: ' + res.error);
+    return;
+  }
+  await loadNodes();
+}
+
+// --- SSH Operations ---
+async function sshTest(id, btn) {
+  const orig = btn.textContent;
+  btn.textContent = 'Testing...';
+  btn.disabled = true;
+  try {
+    const res = await api('api/nodes/' + encodeURIComponent(id) + '/ssh/test', {method: 'POST'});
+    if (res.ok) {
+      btn.textContent = 'OK!';
+      btn.style.color = 'var(--green)';
+    } else {
+      btn.textContent = 'Failed';
+      btn.style.color = 'var(--red)';
+      alert('SSH Test Failed: ' + res.error);
+    }
+  } catch (e) {
+    btn.textContent = 'Error';
+    btn.style.color = 'var(--red)';
+  }
+  setTimeout(() => { btn.textContent = orig; btn.style.color = ''; btn.disabled = false; }, 3000);
+}
+
+async function sshInfo(id) {
+  const node = nodesList.find(n => n.id === id);
+  if (!node) return;
+
+  const html = `
+    <div class="modal-overlay" id="sshinfo-modal" onclick="if(event.target===this)this.remove()" style="display:flex">
+      <div class="modal" style="width:480px">
+        <div class="modal-header">
+          <h3>System Info: ${escHtml(node.name)}</h3>
+          <button class="btn sm" onclick="document.getElementById('sshinfo-modal').remove()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="text-align:center;padding:20px;color:var(--text2)">Connecting via SSH...</div>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+
+  try {
+    const res = await api('api/nodes/' + encodeURIComponent(id) + '/ssh/info');
+    const modal = document.getElementById('sshinfo-modal');
+    if (!modal) return;
+    const body = modal.querySelector('.modal-body');
+    if (res.error) {
+      body.innerHTML = `<div style="color:var(--red);padding:12px">${escHtml(res.error)}</div>`;
+      return;
+    }
+    body.innerHTML = Object.entries(res).map(([k,v]) => `
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <span style="color:var(--text2)">${escHtml(k)}</span>
+        <span>${escHtml(v)}</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    const modal = document.getElementById('sshinfo-modal');
+    if (modal) modal.querySelector('.modal-body').innerHTML = `<div style="color:var(--red);padding:12px">Connection failed: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function showNodeToken(id) {
+  const node = nodesList.find(n => n.id === id);
+  if (!node) return;
+  const token = node.token;
+  const html = `
+    <div class="modal-overlay" id="token-modal" onclick="if(event.target===this)this.remove()" style="display:flex">
+      <div class="modal" style="width:420px">
+        <div class="modal-header">
+          <h3>Node Token: ${escHtml(node.name)}</h3>
+          <button class="btn sm" onclick="document.getElementById('token-modal').remove()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Use this token in the node's config.json as <code>node_token</code>. Click to copy.</p>
+          <div class="token-display" onclick="navigator.clipboard.writeText('${escHtml(token)}');this.style.borderColor='var(--green)';setTimeout(()=>this.style.borderColor='',1000)">${escHtml(token)}</div>
+          <label style="margin-top:16px">Node config.json example:</label>
+          <textarea readonly style="min-height:120px;font-size:12px">{
+  "mode": "node",
+  "domain": "your-domain.com",
+  "upstream": "http://127.0.0.1:8080",
+  "admin_password": "your-password",
+  "guard_secret": "your-secret",
+  "master_url": "${location.protocol}//${location.host}",
+  "node_token": "${escHtml(token)}",
+  "node_name": "${escHtml(node.name)}",
+  "report_interval": 60
+}</textarea>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
 
 // Init
 loadDashboard();

@@ -3,7 +3,9 @@ package main
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,27 +15,39 @@ import (
 var adminFS embed.FS
 
 type AdminHandler struct {
-	cfg   *Config
-	store *Store
-	nginx *NginxManager
-	tmpl  *template.Template
+	cfg       *Config
+	store     *Store
+	nodeStore *NodeStore
+	nginx     *NginxManager
+	tmpl      *template.Template
 }
 
-func NewAdminHandler(cfg *Config, store *Store) *AdminHandler {
+func NewAdminHandler(cfg *Config, store *Store, nodeStore *NodeStore) *AdminHandler {
 	tmpl := template.Must(template.ParseFS(adminFS, "web/admin.html"))
-	return &AdminHandler{cfg: cfg, store: store, nginx: NewNginxManager(), tmpl: tmpl}
+	return &AdminHandler{cfg: cfg, store: store, nodeStore: nodeStore, nginx: NewNginxManager(), tmpl: tmpl}
 }
 
 func (h *AdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Basic Auth
+	path := strings.TrimPrefix(r.URL.Path, "/")
+
+	// 节点上报接口 —— 使用 Token 认证，不需要 Basic Auth
+	if path == "api/report" && r.Method == http.MethodPost {
+		h.handleNodeReport(w, r)
+		return
+	}
+	// 节点拉取白名单接口 —— Token 认证
+	if path == "api/node/whitelist" && r.Method == http.MethodGet {
+		h.handleNodeWhitelistPull(w, r)
+		return
+	}
+
+	// Basic Auth（管理面板）
 	_, pass, ok := r.BasicAuth()
 	if !ok || pass != h.cfg.AdminPassword {
 		w.Header().Set("WWW-Authenticate", `Basic realm="JA3 Guard"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	path := strings.TrimPrefix(r.URL.Path, "/")
 
 	switch {
 	case path == "" || path == "/":
@@ -57,6 +71,34 @@ func (h *AdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleSettingsUpdate(w, r)
 	case path == "api/logs/cleanup" && r.Method == http.MethodPost:
 		h.handleCleanup(w, r)
+	case path == "api/whitelist/sync" && r.Method == http.MethodPost:
+		h.handleWhitelistSync(w, r)
+	// --- 节点管理 (Master) ---
+	case path == "api/nodes" && r.Method == http.MethodGet:
+		h.handleNodeList(w, r)
+	case path == "api/nodes" && r.Method == http.MethodPost:
+		h.handleNodeAdd(w, r)
+	case strings.HasPrefix(path, "api/nodes/") && r.Method == http.MethodGet:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		h.handleNodeGet(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && r.Method == http.MethodPut:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		h.handleNodeUpdate(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/ssh/test") && r.Method == http.MethodPost:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		id = strings.TrimSuffix(id, "/ssh/test")
+		h.handleNodeSSHTest(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/ssh/exec") && r.Method == http.MethodPost:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		id = strings.TrimSuffix(id, "/ssh/exec")
+		h.handleNodeSSHExec(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && strings.HasSuffix(path, "/ssh/info") && r.Method == http.MethodGet:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		id = strings.TrimSuffix(id, "/ssh/info")
+		h.handleNodeSSHInfo(w, r, id)
+	case strings.HasPrefix(path, "api/nodes/") && r.Method == http.MethodDelete:
+		id := strings.TrimPrefix(path, "api/nodes/")
+		h.handleNodeDelete(w, r, id)
 	// --- Nginx 管理 ---
 	case path == "api/nginx/status":
 		h.handleNginxStatus(w, r)
@@ -161,6 +203,7 @@ func (h *AdminHandler) handleWhitelistDelete(w http.ResponseWriter, r *http.Requ
 
 func (h *AdminHandler) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	h.jsonOK(w, map[string]interface{}{
+		"mode":        h.cfg.Mode,
 		"log_enabled": h.cfg.GetLogEnabled(),
 		"upstream":    h.cfg.Upstream,
 		"domain":      h.cfg.Domain,
@@ -188,4 +231,304 @@ func (h *AdminHandler) handleCleanup(w http.ResponseWriter, r *http.Request) {
 	}
 	h.store.Cleanup(days)
 	h.jsonOK(w, map[string]string{"status": "ok"})
+}
+
+// handleWhitelistSync 将白名单推送到所有在线节点（通过 SSH 写入）
+func (h *AdminHandler) handleWhitelistSync(w http.ResponseWriter, r *http.Request) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "仅在 master 模式下可用", 400)
+		return
+	}
+
+	whitelist := h.store.GetWhitelist()
+	wlJSON, _ := json.MarshalIndent(whitelist, "", "  ")
+
+	nodes := h.nodeStore.ListNodes()
+	results := make([]map[string]interface{}, 0, len(nodes))
+
+	for _, n := range nodes {
+		nodeID, _ := n["id"].(string)
+		nodeName, _ := n["name"].(string)
+
+		node, err := h.nodeStore.GetNode(nodeID)
+		if err != nil {
+			results = append(results, map[string]interface{}{
+				"name": nodeName, "ok": false, "error": err.Error(),
+			})
+			continue
+		}
+
+		client := NewSSHClient(node)
+		// 将白名单写入节点的数据目录
+		cmd := fmt.Sprintf("cat > /data/whitelist.json << 'WLEOF'\n%s\nWLEOF", string(wlJSON))
+		_, err = client.Exec(cmd)
+		if err != nil {
+			results = append(results, map[string]interface{}{
+				"name": nodeName, "ok": false, "error": err.Error(),
+			})
+			continue
+		}
+
+		results = append(results, map[string]interface{}{
+			"name": nodeName, "ok": true,
+		})
+		log.Printf("[Sync] 白名单已推送到 %s", nodeName)
+	}
+
+	h.jsonOK(w, map[string]interface{}{
+		"status":  "ok",
+		"results": results,
+	})
+}
+
+// ============================================================
+// 节点管理 API（需要 Basic Auth）
+// ============================================================
+
+func (h *AdminHandler) handleNodeList(w http.ResponseWriter, r *http.Request) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	h.jsonOK(w, map[string]interface{}{
+		"nodes": h.nodeStore.ListNodes(),
+	})
+}
+
+func (h *AdminHandler) handleNodeAdd(w http.ResponseWriter, r *http.Request) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	var node NodeInfo
+	if err := json.NewDecoder(r.Body).Decode(&node); err != nil {
+		h.jsonErr(w, "请求格式错误", 400)
+		return
+	}
+	id, err := h.nodeStore.AddNode(node)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 400)
+		return
+	}
+	h.jsonOK(w, map[string]string{"status": "ok", "id": id})
+}
+
+func (h *AdminHandler) handleNodeGet(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+	h.jsonOK(w, node)
+}
+
+func (h *AdminHandler) handleNodeUpdate(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	var node NodeInfo
+	if err := json.NewDecoder(r.Body).Decode(&node); err != nil {
+		h.jsonErr(w, "请求格式错误", 400)
+		return
+	}
+	if err := h.nodeStore.UpdateNode(id, node); err != nil {
+		h.jsonErr(w, err.Error(), 400)
+		return
+	}
+	h.jsonOK(w, map[string]string{"status": "ok"})
+}
+
+func (h *AdminHandler) handleNodeDelete(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	if err := h.nodeStore.RemoveNode(id); err != nil {
+		h.jsonErr(w, err.Error(), 400)
+		return
+	}
+	h.jsonOK(w, map[string]string{"status": "ok"})
+}
+
+// ============================================================
+// SSH 远程操作 API
+// ============================================================
+
+func (h *AdminHandler) handleNodeSSHTest(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	client := NewSSHClient(node)
+	if err := client.TestConnection(); err != nil {
+		h.jsonOK(w, map[string]interface{}{
+			"ok":    false,
+			"error": err.Error(),
+		})
+		return
+	}
+	h.jsonOK(w, map[string]interface{}{
+		"ok":      true,
+		"message": "SSH 连接成功",
+	})
+}
+
+func (h *AdminHandler) handleNodeSSHExec(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	var req struct {
+		Command string `json:"command"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.jsonErr(w, "请求格式错误", 400)
+		return
+	}
+	if req.Command == "" {
+		h.jsonErr(w, "命令不能为空", 400)
+		return
+	}
+
+	client := NewSSHClient(node)
+	output, err := client.Exec(req.Command)
+	if err != nil {
+		h.jsonOK(w, map[string]interface{}{
+			"ok":     false,
+			"output": err.Error(),
+		})
+		return
+	}
+	h.jsonOK(w, map[string]interface{}{
+		"ok":     true,
+		"output": output,
+	})
+}
+
+func (h *AdminHandler) handleNodeSSHInfo(w http.ResponseWriter, r *http.Request, id string) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "节点管理仅在 master 模式下可用", 400)
+		return
+	}
+	node, err := h.nodeStore.GetNode(id)
+	if err != nil {
+		h.jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	client := NewSSHClient(node)
+	info, err := client.GetSystemInfo()
+	if err != nil {
+		h.jsonErr(w, err.Error(), 500)
+		return
+	}
+	h.jsonOK(w, info)
+}
+
+// ============================================================
+// 节点上报 API（Token 认证，无需 Basic Auth）
+// ============================================================
+
+func (h *AdminHandler) handleNodeReport(w http.ResponseWriter, r *http.Request) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "上报仅在 master 模式下可用", 400)
+		return
+	}
+
+	// Token 认证: Authorization: Bearer <token>
+	token := r.Header.Get("Authorization")
+	if strings.HasPrefix(token, "Bearer ") {
+		token = strings.TrimPrefix(token, "Bearer ")
+	}
+	if token == "" {
+		h.jsonErr(w, "缺少认证令牌", 401)
+		return
+	}
+
+	node, err := h.nodeStore.GetNodeByToken(token)
+	if err != nil {
+		h.jsonErr(w, "无效的认证令牌", 401)
+		return
+	}
+
+	var report struct {
+		Version       string     `json:"version"`
+		Uptime        int64      `json:"uptime"`
+		TotalRequests int        `json:"total_requests"`
+		TrustedCount  int        `json:"trusted_count"`
+		BlockedCount  int        `json:"blocked_count"`
+		Domain        string     `json:"domain"`
+		Upstream      string     `json:"upstream"`
+		Logs          []LogEntry `json:"logs"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&report); err != nil {
+		h.jsonErr(w, "请求格式错误", 400)
+		return
+	}
+
+	// 更新节点状态
+	h.nodeStore.UpdateStatus(node.ID, &NodeStatus{
+		Version:       report.Version,
+		Uptime:        report.Uptime,
+		TotalRequests: report.TotalRequests,
+		TrustedCount:  report.TrustedCount,
+		BlockedCount:  report.BlockedCount,
+		Domain:        report.Domain,
+		Upstream:      report.Upstream,
+	})
+
+	// 存储节点上报的日志
+	for _, logEntry := range report.Logs {
+		h.store.LogRequest(logEntry.IP, logEntry.JA3Hash, logEntry.UA, logEntry.Trusted)
+	}
+
+	// 返回白名单给节点同步
+	whitelist := h.store.GetWhitelist()
+	h.jsonOK(w, map[string]interface{}{
+		"status":    "ok",
+		"whitelist": whitelist,
+	})
+}
+
+// handleNodeWhitelistPull 节点主动拉取白名单
+func (h *AdminHandler) handleNodeWhitelistPull(w http.ResponseWriter, r *http.Request) {
+	if h.nodeStore == nil {
+		h.jsonErr(w, "仅在 master 模式下可用", 400)
+		return
+	}
+
+	token := r.Header.Get("Authorization")
+	if strings.HasPrefix(token, "Bearer ") {
+		token = strings.TrimPrefix(token, "Bearer ")
+	}
+	if token == "" {
+		h.jsonErr(w, "缺少认证令牌", 401)
+		return
+	}
+
+	if _, err := h.nodeStore.GetNodeByToken(token); err != nil {
+		h.jsonErr(w, "无效的认证令牌", 401)
+		return
+	}
+
+	h.jsonOK(w, map[string]interface{}{
+		"whitelist": h.store.GetWhitelist(),
+	})
 }
