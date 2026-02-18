@@ -43,8 +43,7 @@ JA3 Guard 注入的 Header:
 | **domainReplace.php** | `config/domainReplace.php` | 配置：guard_secret + 域名映射 |
 | **DomainReplacer.php** | `src/Utils/DomainReplacer.php` | 域名替换引擎 |
 | **LinkController.php** | `src/Controllers/LinkController.php` | 已改好的控制器（含 JA3 验证） |
-| **TrustProxies.php** | `app/Http/Middleware/TrustProxies.php` | Laravel 信任代理中间件 |
-| **nginx-vhost.conf** | `/www/server/nginx/conf/vhost/sspanel.conf` | Nginx 虚拟主机配置（宝塔） |
+| **nginx-vhost.conf** | `/www/server/nginx/conf/vhost/sspanel.conf` | Nginx 虚拟主机配置（宝塔），含 HTTPS 代理信任 |
 
 ---
 
@@ -70,29 +69,20 @@ scp nginx-vhost.conf root@业务服务器:/www/server/nginx/conf/vhost/sspanel.c
 
 > 宝塔面板会自动加载 `/www/server/nginx/conf/vhost/` 下的 `.conf` 文件，无需手动创建软链接。
 
-### 第 2 步：部署 TrustProxies
+> Nginx 配置中已包含 `fastcgi_param HTTPS on;`，使 PHP 正确识别 HTTPS 协议（替代 Laravel TrustProxies 中间件），同时 `set_real_ip_from` 负责还原客户端真实 IP。
+
+### 第 2 步：部署 PHP 补丁
 
 ```bash
-cp TrustProxies.php /www/sspanel/app/Http/Middleware/TrustProxies.php
-```
-
-这使 Laravel 正确识别 JA3 Guard 的代理 header：
-- `request()->secure()` → `true`（而非 `false`）
-- `request()->ip()` → 客户端真实 IP（而非 JA3 Guard IP）
-- `url()` → 生成 `https://` 链接（而非 `http://`）
-
-### 第 3 步：部署 PHP 补丁
-
-```bash
-# 假设 SSPanel 根目录为 /www/sspanel
-cp DomainReplacer.php   /www/sspanel/src/Utils/DomainReplacer.php
-cp domainReplace.php    /www/sspanel/config/domainReplace.php
-cp LinkController.php   /www/sspanel/src/Controllers/LinkController.php
+# SSPanel 根目录示例：/www/wwwroot/www.gkdyyds.top
+cp DomainReplacer.php   /www/wwwroot/www.gkdyyds.top/src/Utils/DomainReplacer.php
+cp domainReplace.php    /www/wwwroot/www.gkdyyds.top/config/domainReplace.php
+cp LinkController.php   /www/wwwroot/www.gkdyyds.top/src/Controllers/LinkController.php
 ```
 
 > 如果你的 `LinkController.php` 有其他自定义修改，见下方「手动改法」。
 
-### 第 4 步：填入 guard_secret
+### 第 3 步：填入 guard_secret
 
 编辑 `config/domainReplace.php`：
 
@@ -108,7 +98,7 @@ return [
 ];
 ```
 
-### 第 5 步：防火墙（推荐）
+### 第 4 步：防火墙（推荐）
 
 限制只有 JA3 Guard 能访问业务服务器的 80 端口：
 
@@ -195,24 +185,23 @@ curl -H "Host: sub.example.com" http://业务服务器IP:80/
 
 ### 测试 Header 传递
 
-在 SSPanel 临时添加测试路由：
+在 SSPanel 的 `app/routes.php` 中临时添加测试路由：
 ```php
-// routes/web.php（或 routes.php）
-Route::get('/ja3test', function () {
-    return response()->json([
-        'ip'       => request()->ip(),
-        'secure'   => request()->secure(),
-        'proto'    => request()->header('X-Forwarded-Proto'),
-        'host'     => request()->header('X-Forwarded-Host'),
-        'trusted'  => request()->header('X-JA3-Trusted'),
-        'secret'   => request()->header('X-Guard-Secret') ? 'present' : 'missing',
+$app->get('/ja3test', function ($request, $response) {
+    return $response->withJson([
+        'ip'       => $_SERVER['REMOTE_ADDR'],
+        'https'    => $_SERVER['HTTPS'] ?? 'off',
+        'proto'    => $request->getHeaderLine('X-Forwarded-Proto'),
+        'host'     => $request->getHeaderLine('X-Forwarded-Host'),
+        'trusted'  => $request->getHeaderLine('X-JA3-Trusted'),
+        'secret'   => $request->getHeaderLine('X-Guard-Secret') ? 'present' : 'missing',
     ]);
 });
 ```
 
 通过 JA3 Guard 域名访问 `https://sub.example.com/ja3test`，确认：
 - `ip` → 你的客户端真实 IP
-- `secure` → `true`
+- `https` → `on`
 - `proto` → `https`
 - `trusted` → `1` 或 `0`
 - `secret` → `present`
@@ -230,10 +219,10 @@ Route::get('/ja3test', function () {
 A: 检查 Nginx `server_name` 是否与订阅域名一致，`root` 指向 SSPanel 的 `public` 目录。
 
 **Q: 订阅返回空白？**
-A: 检查 PHP-FPM 是否运行、Laravel 日志（`storage/logs/laravel.log`）。
+A: 检查 PHP-FPM 是否运行、查看日志（`storage/logs/`）。
 
 **Q: HTTPS 重定向循环？**
-A: `TrustProxies.php` 未正确配置，导致 Laravel 检测不到 HTTPS 协议。
+A: 检查 Nginx 配置中是否包含 `fastcgi_param HTTPS on;`，确保 PHP 能识别原始 HTTPS 协议。
 
 **Q: 替换不生效？**
 A: 依次检查：
