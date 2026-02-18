@@ -49,6 +49,11 @@ func NewProxyHandler(cfg *Config, store *Store) http.Handler {
 			clientIP = clientIP[:idx]
 		}
 
+		// 注入标准反向代理 header（供上游 Laravel/PHP 正确识别协议和客户端 IP）
+		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Header.Set("X-Real-IP", clientIP)
+		req.Header.Set("X-Forwarded-Host", req.Host)
+
 		// 记录日志（受配置控制）
 		if cfg.GetLogEnabled() {
 			store.LogRequest(clientIP, ja3Hash, req.UserAgent(), trusted)
