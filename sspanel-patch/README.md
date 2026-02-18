@@ -44,7 +44,7 @@ JA3 Guard 注入的 Header:
 | **DomainReplacer.php** | `src/Utils/DomainReplacer.php` | 域名替换引擎 |
 | **LinkController.php** | `src/Controllers/LinkController.php` | 已改好的控制器（含 JA3 验证） |
 | **TrustProxies.php** | `app/Http/Middleware/TrustProxies.php` | Laravel 信任代理中间件 |
-| **nginx-vhost.conf** | `/etc/nginx/sites-available/sspanel.conf` | Nginx 虚拟主机配置 |
+| **nginx-vhost.conf** | `/www/server/nginx/conf/vhost/sspanel.conf` | Nginx 虚拟主机配置（宝塔） |
 
 ---
 
@@ -52,23 +52,23 @@ JA3 Guard 注入的 Header:
 
 ### 第 1 步：配置 Nginx
 
-将 `nginx-vhost.conf` 复制到业务服务器并修改：
+将 `nginx-vhost.conf` 复制到业务服务器（宝塔环境）：
 
 ```bash
-scp nginx-vhost.conf root@业务服务器:/etc/nginx/sites-available/sspanel.conf
+scp nginx-vhost.conf root@业务服务器:/www/server/nginx/conf/vhost/sspanel.conf
 ```
 
 **必须修改的内容：**
 - `server_name` → 你的订阅域名
 - `root` → SSPanel 的 `public` 目录路径
 - `set_real_ip_from` → JA3 Guard 服务器 IP
-- `fastcgi_pass` → 你的 PHP-FPM socket 路径
 
 ```bash
-# 启用站点、测试、重载
-ln -sf /etc/nginx/sites-available/sspanel.conf /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
+# 测试配置、重载
+/www/server/nginx/sbin/nginx -t && /www/server/nginx/sbin/nginx -s reload
 ```
+
+> 宝塔面板会自动加载 `/www/server/nginx/conf/vhost/` 下的 `.conf` 文件，无需手动创建软链接。
 
 ### 第 2 步：部署 TrustProxies
 
