@@ -1,0 +1,46 @@
+# GKD Cloud Client - 品牌定制配置
+# 用于自定义客户端的外观和标识
+
+# 应用基本信息
+app:
+  name: "GKD Cloud"
+  display_name: "GKD Cloud"
+  package_name: "com.gkdcloud.client"
+  version: "1.0.0"
+  build_number: 1
+
+# 各平台 Bundle ID / Package Name
+platforms:
+  android:
+    package_name: "com.gkdcloud.client"
+    min_sdk: 21
+    target_sdk: 34
+  ios:
+    bundle_id: "com.gkdcloud.client"
+    min_version: "15.0"
+  macos:
+    bundle_id: "com.gkdcloud.client"
+    min_version: "10.15"
+  windows:
+    app_name: "GKD Cloud"
+    company_name: "GKD Cloud"
+
+# 默认订阅设置
+subscription:
+  # 默认面板类型: sspanel, v2board
+  default_panel_type: "sspanel"
+  # 自动更新间隔（分钟）
+  auto_update_interval: 60
+  # 默认 User-Agent
+  user_agent: "ClashForAndroid/2.5.12"
+
+# 功能开关
+features:
+  # 是否显示 DoH 设置入口
+  show_doh_settings: true
+  # 是否显示域名伪装设置入口
+  show_domain_mask_settings: true
+  # 是否启用 DoH（默认）
+  enable_doh_by_default: true
+  # 是否启用域名伪装（默认）
+  enable_mask_by_default: false

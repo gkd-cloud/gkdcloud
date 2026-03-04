@@ -1,0 +1,45 @@
+# GKD Cloud Client - 默认 DoH 配置
+# 此文件定义客户端默认使用的 DNS-over-HTTPS 服务器
+
+# 主要 DoH 服务器
+servers:
+  - url: "https://1.1.1.1/dns-query"
+    name: "Cloudflare"
+    weight: 10
+  - url: "https://8.8.8.8/dns-query"
+    name: "Google"
+    weight: 8
+  - url: "https://dns.google/dns-query"
+    name: "Google DNS"
+    weight: 8
+
+# 备用 DoH 服务器（当主服务器不可用时使用）
+fallback_servers:
+  - url: "https://9.9.9.9/dns-query"
+    name: "Quad9"
+    weight: 5
+  - url: "https://223.5.5.5/dns-query"
+    name: "AliDNS"
+    weight: 5
+  - url: "https://1.12.12.12/dns-query"
+    name: "DNSPod"
+    weight: 5
+
+# 选择策略: fastest(最快响应), random(随机), round-robin(轮询)
+strategy: "fastest"
+
+# DNS 缓存设置
+cache_ttl: 300      # 缓存 TTL（秒），0 = 使用 DNS 记录自身 TTL
+cache_size: 1000    # 最大缓存条目数
+
+# 引导 DNS（纯 IP，用于解析 DoH 服务器的域名）
+bootstrap:
+  - "1.1.1.1"
+  - "8.8.8.8"
+
+# IPv6 设置
+enable_ipv6: false
+
+# 静态域名映射（可选，类似 hosts 文件）
+# host_mapping:
+#   "example.com": "1.2.3.4"
