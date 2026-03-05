@@ -10,7 +10,8 @@ use App\Utils\{
     Tools,
     AppURI,
     ConfRender,
-    DomainReplacer
+    DomainReplacer,
+    ClashMetaConf
 };
 use App\Metron\Metron;
 use voku\helper\AntiXSS;
@@ -890,10 +891,22 @@ class LinkController extends BaseController
         header('profile-update-interval: 24');
         header("content-disposition:attachment;filename={$_ENV['appName']}");
 
+        // --- Mihomo 客户端 DNS 增强 开始 ---
+        $isMihomo = self::isMihomoClient($opts['_ua'] ?? '');
+
+        if ($isMihomo) {
+            // 方案一（优先）：独立 YAML 模板 (config/clash-meta-template.yaml)
+            // 模板文件存在时直接返回，完整控制代理组、规则、DNS 配置
+            $metaYaml = ClashMetaConf::render($user, $Proxys);
+            if ($metaYaml !== '') {
+                return $metaYaml;
+            }
+        }
+
+        // 方案二：面板默认配置（+ dns 注入，当模板未部署时自动降级）
         $yaml = ConfController::getClashConfs($user, $Proxys, $_ENV['Clash_Profiles'][$Profiles]);
 
-        // --- Mihomo 客户端 DNS 增强 开始 ---
-        if (self::isMihomoClient($opts['_ua'] ?? '')) {
+        if ($isMihomo) {
             $yaml = self::injectMihomoConfig($yaml);
         }
         // --- Mihomo 客户端 DNS 增强 结束 ---
