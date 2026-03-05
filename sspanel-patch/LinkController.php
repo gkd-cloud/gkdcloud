@@ -891,27 +891,15 @@ class LinkController extends BaseController
         header('profile-update-interval: 24');
         header("content-disposition:attachment;filename={$_ENV['appName']}");
 
-        // --- Mihomo 客户端 DNS 增强 开始 ---
-        $isMihomo = self::isMihomoClient($opts['_ua'] ?? '');
-
-        if ($isMihomo) {
-            // 方案一（优先）：独立 YAML 模板 (config/clash-meta-template.yaml)
-            // 模板文件存在时直接返回，完整控制代理组、规则、DNS 配置
+        // --- Mihomo 客户端：下发独立模板配置 ---
+        if (self::isMihomoClient($opts['_ua'] ?? '')) {
             $metaYaml = ClashMetaConf::render($user, $Proxys);
             if ($metaYaml !== '') {
                 return $metaYaml;
             }
         }
 
-        // 方案二：面板默认配置（+ dns 注入，当模板未部署时自动降级）
-        $yaml = ConfController::getClashConfs($user, $Proxys, $_ENV['Clash_Profiles'][$Profiles]);
-
-        if ($isMihomo) {
-            $yaml = self::injectMihomoConfig($yaml);
-        }
-        // --- Mihomo 客户端 DNS 增强 结束 ---
-
-        return $yaml;
+        return ConfController::getClashConfs($user, $Proxys, $_ENV['Clash_Profiles'][$Profiles]);
     }
 
     /**
@@ -937,60 +925,6 @@ class LinkController extends BaseController
             }
         }
         return false;
-    }
-
-    /**
-     * 向 Clash YAML 的 dns: 块注入 Mihomo 专用配置（nameserver-policy 等）。
-     *
-     * 策略：正则精确定位 dns: 块后替换，保留 #!MANAGED-CONFIG 注释头等其余内容不变。
-     * （若 parse→dump 整个输出会丢失注释，破坏 Clash Verge 托管配置功能。）
-     *
-     * 配置来源：config/clashMetaDns.php（返回 PHP 数组）
-     *
-     * 降级条件（任意满足则原样返回，不中断订阅）：
-     *   1. config/clashMetaDns.php 不存在
-     *   2. 配置文件返回空值或非数组
-     *   3. 正则未匹配到 dns: 块（兜底：在 rules: 前插入）
-     */
-    private static function injectMihomoConfig(string $yaml): string
-    {
-        $dnsConfigPath = BASE_PATH . '/config/clashMetaDns.php';
-        if (!file_exists($dnsConfigPath)) {
-            return $yaml;
-        }
-
-        $dnsConfig = require $dnsConfigPath;
-        if (empty($dnsConfig) || !is_array($dnsConfig)) {
-            return $yaml;
-        }
-
-        // 正则匹配 dns: 块（顶层 key + 后续所有缩进行）
-        $dnsBlockPattern = '/^dns:\s*\n(?:[ \t]+[^\n]*\n?)*/m';
-
-        if (!preg_match($dnsBlockPattern, $yaml)) {
-            // 无 dns: 节 —— 在 rules:/Rule: 之前插入整个 dns 节（兜底）
-            $newDns = array_merge(['enable' => true], $dnsConfig);
-            $newDnsBlock = \Symfony\Component\Yaml\Yaml::dump(['dns' => $newDns], 4, 2);
-            return preg_replace('/^(rules:|Rule:)/m', $newDnsBlock . "\n$1", $yaml, 1);
-        }
-
-        // 解析现有 dns 子键（用虚拟顶层 key "_:" 包裹，保留缩进关系）
-        $existingDns = [];
-        try {
-            preg_match($dnsBlockPattern, $yaml, $matches);
-            $dnsBody = preg_replace('/^dns:\s*\n/', '', $matches[0]);
-            $parsed  = \Symfony\Component\Yaml\Yaml::parse("_:\n" . $dnsBody);
-            $existingDns = is_array($parsed['_'] ?? null) ? $parsed['_'] : [];
-        } catch (\Exception $e) {
-            // 解析失败以空数组为基础，不中断
-        }
-
-        // 合并：clashMetaDns.php 的键覆盖原有值
-        $mergedDns   = array_merge($existingDns, $dnsConfig);
-        $newDnsBlock = \Symfony\Component\Yaml\Yaml::dump(['dns' => $mergedDns], 4, 2);
-
-        // 精确替换 dns: 块，其余内容（注释头、rules: 等）完整保留
-        return preg_replace($dnsBlockPattern, $newDnsBlock . "\n", $yaml, 1);
     }
 
     /**
