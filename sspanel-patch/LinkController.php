@@ -75,7 +75,7 @@ class LinkController extends BaseController
         }
 
         $opts = $request->getQueryParams();
-        $opts['_ua'] = $request->getHeaderLine('User-Agent'); // 传递 UA，用于 Clash 客户端识别
+        $opts['_ua'] = $request->getHeaderLine('User-Agent');
 
         // 订阅节点筛选(定制)
         $nodeFilter = Metron::getNodeFilter($token);
@@ -911,9 +911,6 @@ class LinkController extends BaseController
      *   flclash      → FlClash 原版 + 定制版
      *   clash-verge  → Clash Verge / Clash Verge Rev
      *   clashx.meta  → ClashX.Meta（macOS）
-     *
-     * 不在列表中的客户端（下发默认配置，不注入 nameserver-policy）：
-     *   Clash for Windows、ClashX（非 Meta 版）、Stash、OpenClash 等
      */
     private static function isMihomoClient(string $ua): bool
     {
