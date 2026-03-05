@@ -158,7 +158,6 @@ proxy-groups:
     type: select
     proxies:
       - DIRECT
-      - "🚀 节点选择"
 
   # 广告拦截
   - name: "🛑 广告拦截"
