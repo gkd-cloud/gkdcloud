@@ -10,8 +10,7 @@ use App\Utils\{
     Tools,
     AppURI,
     ConfRender,
-    DomainReplacer,
-    ClashMetaConf
+    DomainReplacer
 };
 use App\Metron\Metron;
 use voku\helper\AntiXSS;
@@ -75,7 +74,6 @@ class LinkController extends BaseController
         }
 
         $opts = $request->getQueryParams();
-        $opts['_ua'] = $request->getHeaderLine('User-Agent');
 
         // 订阅节点筛选(定制)
         $nodeFilter = Metron::getNodeFilter($token);
@@ -891,37 +889,7 @@ class LinkController extends BaseController
         header('profile-update-interval: 24');
         header("content-disposition:attachment;filename={$_ENV['appName']}");
 
-        // --- Mihomo 客户端：下发独立模板配置 ---
-        if (self::isMihomoClient($opts['_ua'] ?? '')) {
-            $metaYaml = ClashMetaConf::render($user, $Proxys);
-            if ($metaYaml !== '') {
-                return $metaYaml;
-            }
-        }
-
         return ConfController::getClashConfs($user, $Proxys, $_ENV['Clash_Profiles'][$Profiles]);
-    }
-
-    /**
-     * 检测是否是支持 nameserver-policy 的 Mihomo/Clash.Meta 核心客户端。
-     *
-     * 匹配的 User-Agent 关键词（大小写不敏感）：
-     *   clash.meta   → Mihomo / Clash.Meta 官方核心
-     *   mihomo       → Mihomo 新命名
-     *   flclash      → FlClash 原版 + 定制版
-     *   clash-verge  → Clash Verge / Clash Verge Rev
-     *   clashx.meta  → ClashX.Meta（macOS）
-     */
-    private static function isMihomoClient(string $ua): bool
-    {
-        $ua = strtolower($ua);
-        $patterns = ['clash.meta', 'mihomo', 'flclash', 'clash-verge', 'clashx.meta'];
-        foreach ($patterns as $pattern) {
-            if (strpos($ua, $pattern) !== false) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

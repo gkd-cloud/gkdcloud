@@ -1,0 +1,194 @@
+# ==============================================================================
+# Mihomo / Clash.Meta 专用 Clash 配置模板
+# ------------------------------------------------------------------------------
+# 部署路径：{SSPanel根目录}/config/clash-meta-template.yaml
+#
+# 【使用说明】
+# 1. 此文件由 SSPanel 的 ClashMetaConf::render() 读取后注入代理节点再下发
+# 2. "proxies:" 节会被 SSPanel 自动填充，请保留该 key（值无需修改）
+# 3. proxy-groups 的 proxies 列表中写 __ALL__ 表示自动展开为所有节点名称
+# 4. 修改此文件后，客户端重新拉取订阅即可生效，无需重启任何服务
+#
+# 【Mihomo 完整文档】https://wiki.metacubex.one/
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 基础端口与模式
+# ------------------------------------------------------------------------------
+port: 7890              # HTTP 代理端口
+socks-port: 7891        # SOCKS5 代理端口
+mixed-port: 7892        # 混合端口（HTTP + SOCKS5）
+allow-lan: false        # 是否允许局域网连接（true = 开启共享代理）
+mode: rule              # 代理模式：rule（规则）/ global（全局）/ direct（直连）
+log-level: info         # 日志等级：silent / error / warning / info / debug
+ipv6: false             # 是否启用 IPv6
+
+# ------------------------------------------------------------------------------
+# 外部控制器（Clash Dashboard / Yacd / MetaCubeXD）
+# 取消注释并修改 secret 来启用
+# ------------------------------------------------------------------------------
+# external-controller: 0.0.0.0:9090
+# external-ui: ui
+# secret: "your-dashboard-secret"
+
+# ------------------------------------------------------------------------------
+# DNS 配置
+# 这是使用独立模板方案的核心目的：完整控制 Mihomo 客户端的 DNS 行为
+# ------------------------------------------------------------------------------
+dns:
+  enable: true
+  ipv6: false
+
+  # DNS 解析模式
+  # fake-ip：拦截 DNS 请求，返回虚假 IP 让流量走代理（推荐，延迟低）
+  # redir-host：传统方式，真实解析 IP 后再判断路由
+  enhanced-mode: fake-ip
+
+  # fake-ip 地址池（客户端会收到这个段内的虚假 IP）
+  fake-ip-range: 198.18.0.0/15
+
+  # 以下域名不使用 fake-ip（直接解析真实 IP）
+  fake-ip-filter:
+    - '*.lan'
+    - '*.local'
+    - '*.localhost'
+    - localhost.ptlogin2.qq.com
+    - +.stun.*.*
+    - +.stun.*.*.*
+    - +.stun.*.*.*.*
+
+  # 使用系统 hosts 文件
+  use-hosts: true
+
+  # ============================================================================
+  # 主 DNS 服务器（用于解析未被 nameserver-policy 匹配的域名）
+  # 支持：IP（UDP 53）、DoH（https://）、DoT（tls://）
+  # ← 修改这里来切换默认 DNS 服务器
+  # ============================================================================
+  nameserver:
+    - https://1.1.1.1/dns-query      # Cloudflare DoH ← 可修改
+    - https://8.8.8.8/dns-query      # Google DoH     ← 可修改
+    # - tls://8.8.8.8:853            # Google DoT（备选）
+    # - https://doh.pub/dns-query    # 腾讯 DoH（备选）
+
+  # ============================================================================
+  # Fallback DNS（当 fallback-filter 触发时使用）
+  # 通常用于：nameserver 返回的 IP 属于被污染地区时，换用 fallback 重新查询
+  # ← 修改这里来切换 Fallback DNS
+  # ============================================================================
+  fallback:
+    - 114.114.114.114               # 114 DNS   ← 可修改
+    - 223.5.5.5                     # 阿里 DNS  ← 可修改
+    # - 8.8.4.4
+
+  # Fallback 触发条件
+  fallback-filter:
+    geoip: true
+    geoip-code: CN         # 返回中国大陆 IP 时触发 fallback（通常意味着 DNS 污染）
+    ipcidr:
+      - 240.0.0.0/4        # 保留地址，视为被污染
+      # - 0.0.0.0/8
+
+  # ============================================================================
+  # nameserver-policy（核心功能）
+  # 针对特定域名或 GeoSite 规则集，强制指定使用哪个 DNS 服务器解析
+  # 优先级高于 nameserver，匹配后不再走 nameserver
+  #
+  # 格式：
+  #   'geosite:xxx'     → GeoSite 规则集
+  #   '+.example.com'   → 匹配 example.com 及所有子域名
+  #   '*.example.com'   → 仅匹配子域名
+  #
+  # 常用 geosite 标识：
+  #   cn                → 中国大陆常见域名
+  #   private           → 私有/局域网域名
+  #   geolocation-!cn   → 非中国大陆（通常走代理）
+  #   category-ads-all  → 广告域名
+  # ← 修改下方规则来自定义按域名的 DNS 指定
+  # ============================================================================
+  nameserver-policy:
+    # 指定域名 → 使用自定义 DNS（多个域名用逗号分隔）
+    'planb.mojcn.com,m.cnmjin.net':
+      - 'https://api.edgequery.cc:40443/dns-query'
+      - 'https://39.173.146.159:8443/dns-query'
+      - 'https://36.150.95.34:8443/dns-query'
+      - 'https://api.edgequery.net:40443/dns-query'
+# ------------------------------------------------------------------------------
+# 代理节点
+# 【重要】此节由 SSPanel 自动注入，请保留 "proxies:" key，值无需修改
+# ------------------------------------------------------------------------------
+proxies: []
+
+# ------------------------------------------------------------------------------
+# 代理组
+# __ALL__ 会被自动替换为全部代理节点的名称列表
+# 可以在 __ALL__ 前后添加特殊条目（如 DIRECT、REJECT）
+# ------------------------------------------------------------------------------
+proxy-groups:
+
+  # 手动选择节点
+  - name: "🚀 节点选择"
+    type: select
+    proxies:
+      - "♻️ 自动选择"
+      - "🎯 全球直连"
+      - __ALL__            # ← 所有节点展开到此处
+
+  # 自动选择最快节点
+  - name: "♻️ 自动选择"
+    type: url-test
+    proxies:
+      - __ALL__
+    url: https://www.gstatic.com/generate_204
+    interval: 300          # 测速间隔（秒）← 可修改
+    tolerance: 50          # 延迟差小于此值时不切换（ms）
+
+  # 直连组
+  - name: "🎯 全球直连"
+    type: select
+    proxies:
+      - DIRECT
+
+  # 广告拦截
+  - name: "🛑 广告拦截"
+    type: select
+    proxies:
+      - REJECT
+      - DIRECT
+
+  # 漏网之鱼（未匹配规则的流量）
+  - name: "🐟 漏网之鱼"
+    type: select
+    proxies:
+      - "🚀 节点选择"
+      - "🎯 全球直连"
+
+  # 可在此处添加更多代理组，例如按地区分组：
+  # - name: "🇭🇰 香港节点"
+  #   type: url-test
+  #   proxies:
+  #     - __ALL__          # 也可手动列出节点名称
+  #   filter: "香港|HK|Hong Kong"
+  #   url: https://www.gstatic.com/generate_204
+  #   interval: 300
+
+# ------------------------------------------------------------------------------
+# 分流规则
+# 规则按从上到下顺序匹配，第一条匹配的规则生效
+# 修改此处来自定义流量路由策略
+# ------------------------------------------------------------------------------
+rules:
+  # 广告拦截
+  - GEOSITE,category-ads-all,🛑 广告拦截
+
+  # 私有地址直连
+  - GEOIP,private,🎯 全球直连,no-resolve
+
+  # 国内域名直连
+  - GEOSITE,cn,🎯 全球直连
+
+  # 国内 IP 直连
+  - GEOIP,CN,🎯 全球直连,no-resolve
+
+  # 其余流量走代理
+  - MATCH,🐟 漏网之鱼
