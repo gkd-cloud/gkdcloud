@@ -57,6 +57,7 @@
                                                         <p class="font-size-h1 pb-5"><strong>1. 下载客户端</strong></p>
                                                         <a href="https://app.chongjin01.icu/Windows/FLClash/FlClash--windows-amd64-setup.exe" class="btn btn-pill btn-clash mb-4" target="_blank">&nbsp;&nbsp;<i class="metron-clash text-white"></i>下载 FlClash（Windows x64，推荐）</a>
                                                         <br/>
+                                                        <div class="h6 pt-2 text-warning">安装时若出现报错，请先安装运行库：<a href="https://423down.lanzouo.com/iZF4Q378w2le" target="_blank">点击下载运行库</a>，安装完成后重试</div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
                                                         <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_2.png" data-lightbox="images">
