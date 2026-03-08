@@ -78,17 +78,9 @@
                                                     <div class="col-sm-12 col-md-12 col-lg-7 pb-5">
                                                         <p class="font-size-h1 pb-5"><strong>2. 导入订阅</strong></p>
                                                         {if in_array('clash',$metron['index_sub'])}
-                                                        <div class="btn-group mb-3 mr-3">
-                                                            <button type="button" class="btn btn-pill btn-clash dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">&nbsp;&nbsp;<i class="metron-clash text-white"></i>订阅配置&nbsp;&nbsp;</button>
-                                                            <div class="dropdown-menu">
-                                                                <button type="button" class="dropdown-item copy-text" data-clipboard-text="{$subInfo["clash"]}">复制订阅链接</button>
-                                                                <div class="dropdown-divider"></div>
-                                                                <button type="button" class="dropdown-item" href="##" onclick="importSublink('clash')">一键导入 Clash Verge</button>
-                                                            </div>
-                                                        </div>
+                                                        <button type="button" class="btn btn-pill btn-clash mb-3 copy-text" data-clipboard-text="{$subInfo["clash"]}">&nbsp;&nbsp;<i class="metron-clash text-white"></i>复制订阅链接</button>
                                                         {/if}
-                                                        <div class="h6 pt-2">点击上方 <strong>一键导入 Clash Verge</strong>，客户端将自动打开并添加订阅</div>
-                                                        <div class="h6 pt-2">也可手动操作：复制订阅链接 → 打开客户端 → 左侧点击 <code>订阅</code> 图标 → 点击右上角 <code>新建</code> → 粘贴链接 → 保存</div>
+                                                        <div class="h6 pt-2">复制订阅链接后，打开客户端 → 左侧点击 <code>订阅</code> 图标 → 点击右上角 <code>新建</code> → 粘贴链接 → 保存</div>
                                                         <div class="h6 pt-2">添加成功后点击订阅卡片右侧的 <code>更新</code> 按钮拉取最新节点</div>
                                                         <div class="h6 pt-2">更新完成后，点击订阅卡片将其设为 <strong>当前使用</strong> 的配置</div>
                                                     </div>
@@ -150,7 +142,6 @@
         </div>
 
         {include file='include/global/scripts.tpl'}
-        {include file='include/global/import_sublink.tpl'}
         <script src="{$metron['assets_url']}/plugins/tutorial/lightbox/lightbox.min.js" type="text/javascript"></script>
 
     </body>

@@ -72,17 +72,9 @@
                                                     <div class="col-sm-12 col-md-12 col-lg-7 pb-5">
                                                         <p class="font-size-h1 pb-5"><strong>2. 导入订阅</strong></p>
                                                         {if in_array('clash',$metron['index_sub'])}
-                                                        <div class="btn-group mb-3 mr-3">
-                                                            <button type="button" class="btn btn-pill btn-clash dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">&nbsp;&nbsp;<i class="metron-clash text-white"></i>订阅配置&nbsp;&nbsp;</button>
-                                                            <div class="dropdown-menu">
-                                                                <button type="button" class="dropdown-item copy-text" data-clipboard-text="{$subInfo["clash"]}">复制订阅链接</button>
-                                                                <div class="dropdown-divider"></div>
-                                                                <button type="button" class="dropdown-item" href="##" onclick="importSublink('clash')">一键导入 FlClash</button>
-                                                            </div>
-                                                        </div>
+                                                        <button type="button" class="btn btn-pill btn-clash mb-3 copy-text" data-clipboard-text="{$subInfo["clash"]}">&nbsp;&nbsp;<i class="metron-clash text-white"></i>复制订阅链接</button>
                                                         {/if}
-                                                        <div class="h6 pt-2">点击上方 <strong>一键导入 FlClash</strong>，客户端将自动打开并添加订阅配置</div>
-                                                        <div class="h6 pt-2">也可手动操作：复制订阅链接 → 打开 FlClash → 点击左侧 <code>配置</code> → 点击右下角 <strong>+</strong> 按钮 → 选择 <code>从 URL 导入</code> → 粘贴链接 → 确认</div>
+                                                        <div class="h6 pt-2">复制订阅链接后，打开 FlClash → 点击左侧 <code>配置</code> → 点击右下角 <strong>+</strong> 按钮 → 选择 <code>从 URL 导入</code> → 粘贴链接 → 确认</div>
                                                         <div class="h6 pt-2">导入后点击配置卡片旁的刷新图标更新节点，然后点击卡片将其设为当前配置</div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
@@ -143,7 +135,6 @@
         </div>
 
         {include file='include/global/scripts.tpl'}
-        {include file='include/global/import_sublink.tpl'}
         <script src="{$metron['assets_url']}/plugins/tutorial/lightbox/lightbox.min.js" type="text/javascript"></script>
 
     </body>
