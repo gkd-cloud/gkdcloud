@@ -43,8 +43,8 @@
                                                         </div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_1.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_1.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/clashverge1.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/clashverge1.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 1 -->
@@ -65,8 +65,8 @@
                                                         </div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_2.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_2.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/clashverge2.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/clashverge2.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 2 -->
@@ -85,8 +85,8 @@
                                                         <div class="h6 pt-2">更新完成后，点击订阅卡片将其设为 <strong>当前使用</strong> 的配置</div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_3.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_3.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/clashverge3.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/clashverge3.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 3 -->
@@ -103,8 +103,8 @@
                                                         <div class="h6 pt-2">也可切换为 <code>自动选择</code> 模式，让客户端自动选择最优节点</div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_4.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_4.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/clashverge4.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/clashverge4.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 4 -->
@@ -121,8 +121,8 @@
                                                         <div class="h6 pt-2">也可右键任务栏托盘图标快速切换 <code>系统代理</code> 开关</div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_5.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/clash-verge/verge_5.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/clashverge5.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/clashverge5.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 5 -->

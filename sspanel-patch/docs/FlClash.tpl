@@ -43,8 +43,8 @@
                                                         </div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_1.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_1.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/flclash1.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/flclash1.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 1 -->
@@ -60,8 +60,8 @@
                                                         <div class="h6 pt-2 text-warning">安装时若出现报错，请先安装运行库：<a href="https://423down.lanzouo.com/iZF4Q378w2le" target="_blank">点击下载运行库</a>，安装完成后重试</div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_2.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_2.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/flclash2.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/flclash2.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 2 -->
@@ -79,8 +79,8 @@
                                                         <div class="h6 pt-2">导入后点击配置卡片旁的刷新图标更新节点，然后点击卡片将其设为当前配置</div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_3.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_3.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/flclash3.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/flclash3.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 3 -->
@@ -97,8 +97,8 @@
                                                         <div class="h6 pt-2">推荐将 <code>节点选择</code> 切换为 <code>自动选择</code>，FlClash 会自动测速并选择延迟最低的节点</div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_4.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_4.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/flclash4.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/flclash4.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 4 -->
@@ -115,8 +115,8 @@
                                                         <div class="h6 pt-2">一切准备就绪，现在可以正常访问了！</div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
-                                                        <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_5.png" data-lightbox="images">
-                                                        <img class="rounded-lg" style="width:100%" src="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_5.png"/></a>
+                                                        <a class="image-popup-no-margins" href="/images/tutorial/flclash5.png" data-lightbox="images">
+                                                        <img class="rounded-lg" style="width:100%" src="/images/tutorial/flclash5.png"/></a>
                                                     </div>
                                                 </div>
 <!-- 结束 :: 内容段落 5 -->
