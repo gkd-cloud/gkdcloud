@@ -55,9 +55,9 @@
                                                 <div class="row p-5">
                                                     <div class="col-sm-12 col-md-12 col-lg-7 pb-5">
                                                         <p class="font-size-h1 pb-5"><strong>1. 下载客户端</strong></p>
-                                                        <a href="https://app.chongjin01.icu/Windows/clash-verge/clash-verge-rev_x64-setup.exe" class="btn btn-pill btn-clash mb-4" target="_blank">&nbsp;&nbsp;<i class="metron-clash text-white"></i>下载 Clash Verge Rev（Windows x64，推荐）</a>
+                                                        <a href="https://app.chongjin01.icu/Windows/Clash_Verge_REV/ClashVerge_x64.exe" class="btn btn-pill btn-clash mb-4" target="_blank">&nbsp;&nbsp;<i class="metron-clash text-white"></i>下载 Clash Verge Rev（Windows x64，推荐）</a>
                                                         <br/>
-                                                        <a href="https://app.chongjin01.icu/Windows/clash-verge/clash-verge-rev_arm64-setup.exe" class="btn btn-pill btn-secondary mb-4" target="_blank">下载 Clash Verge Rev（Windows ARM64）</a>
+                                                        <a href="https://app.chongjin01.icu/Windows/Clash_Verge_REV/ClashVerge_arm.exe" class="btn btn-pill btn-secondary mb-4" target="_blank">下载 Clash Verge Rev（Windows ARM64）</a>
                                                         <div class="h6 pt-3">双击安装包，按提示完成安装后从桌面打开 <code>Clash Verge Rev</code></div>
                                                         <div class="h6 pt-2">
                                                             <span class="text-muted">macOS / Linux 用户请前往
