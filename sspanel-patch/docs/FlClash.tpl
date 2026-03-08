@@ -55,15 +55,8 @@
                                                 <div class="row p-5">
                                                     <div class="col-sm-12 col-md-12 col-lg-7 pb-5">
                                                         <p class="font-size-h1 pb-5"><strong>1. 下载客户端</strong></p>
-                                                        <a href="https://app.chongjin01.icu/Windows/flclash/FlClash-setup-x64.exe" class="btn btn-pill btn-clash mb-4" target="_blank">&nbsp;&nbsp;<i class="metron-clash text-white"></i>下载 FlClash（Windows x64，推荐）</a>
+                                                        <a href="https://app.chongjin01.icu/Windows/FLClash/FlClash--windows-amd64-setup.exe" class="btn btn-pill btn-clash mb-4" target="_blank">&nbsp;&nbsp;<i class="metron-clash text-white"></i>下载 FlClash（Windows x64，推荐）</a>
                                                         <br/>
-                                                        <a href="https://app.chongjin01.icu/Android/flclash/FlClash-arm64.apk" class="btn btn-pill btn-secondary mb-4" target="_blank">下载 FlClash（Android APK）</a>
-                                                        <div class="h6 pt-3"><strong>Windows：</strong>双击安装包，按提示完成安装后从桌面打开 <code>FlClash</code></div>
-                                                        <div class="h6 pt-2"><strong>Android：</strong>下载 APK 后允许安装未知来源应用，安装完成后打开</div>
-                                                        <div class="h6 pt-2">
-                                                            <span class="text-muted">其他平台（macOS / Linux）请前往
-                                                            <a href="https://github.com/chen08209/FlClash/releases" target="_blank">GitHub Releases</a> 下载</span>
-                                                        </div>
                                                     </div>
                                                     <div class="col-sm-12 col-md-12 col-lg-5">
                                                         <a class="image-popup-no-margins" href="{$metron['assets_url']}/media/tutorial/windows/flclash/flclash_2.png" data-lightbox="images">
